@@ -1,0 +1,277 @@
+------------------------------------------------------------------------
+r8 | bulliver | 2008-04-13 15:21:47 -0600 (Sun, 13 Apr 2008) | 14 lines
+
+APPVERSION = '0.9.0'
+
+* Cleaned up comments.
+* Added 'VITOK'.
+* Added support for specifying tags on the CLI. Also, no longer clobber comments due to user request.
+* Added 'vidToWav' to rip audio from all mplayer supported video file types.
+* Added 'wma' to valid out type (I wouldn't have guessed mplayer would even try to support it!)
+* Made 'wavToSox' wrapper for all Sox-supported file types.
+* Added conversion tool command line to --verbose output.
+* Added two new exit codes: 42 and 43.
+
+Rolled and released... 
+
+
+------------------------------------------------------------------------
+r6 | bulliver | 2008-03-31 14:31:30 -0600 (Mon, 31 Mar 2008) | 2 lines
+
+Changed "qp" to "pp"
+
+------------------------------------------------------------------------
+r5 | bulliver | 2008-03-28 15:11:59 -0600 (Fri, 28 Mar 2008) | 10 lines
+
+APPVERSION = '0.8.1'
+First commit to Subversion
+
+* created 'class ProcessCLI' to encapsulate CLI processing.
+* cleaned up comments
+* modified long_help to display OUTOK and INTOK nicer.
+* moved 'check_for' to class Convert. No need for global def.
+* made 'check_for', 'runCommand', 'write_ape_tags' and 'write_id3_tags' private.
+
+
+------------------------------------------------------------------------
+r1 | bulliver | 2008-03-28 11:39:00 -0600 (Fri, 28 Mar 2008) | 1 line
+
+Initial import from CVS to SVN
+------------------------------------------------------------------------
+----------------------------
+revision 1.24
+date: 2008-03-28 11:14:59 -0600;  author: bulliver;  state: Exp;  lines: +118 -90;  commitid: 418647ed268c4567;
+APPVERSION = '0.8.1'
+* Split help function into 'short_help' and 'long_help'.
+* Added several 'short options' switches to those options with only long switches.
+* changed 'system("mkdir -p '#{dir}'")' to 'FileUtils.mkdirs("#{dir}")'
+* Added '--stasis' switch to preserve file timestamps.
+
+....aaannnnnnnnnnnnnnnnnnd:
+* This is the last commit to CVS. I am upgrading to Subversion.
+----------------------------
+revision 1.23
+date: 2008-03-24 11:29:14 -0600;  author: bulliver;  state: Exp;  lines: +142 -101;  commitid: 395c47e7e38b4567;
+APPVERSION="0.8.0"
+* Finally fixed (I hope) '-D' bug, thanks to Oleg Lyashko <olegvl [AT] gmail [DOT] com>
+* Created a workaround for the "null byte' bug. Still unable to definitively track down
+  the source to fix properly.
+* Added some threading code. Seems to work OK, but still not perfect. For example: when
+  three threads are started they must all complete before three more can be started. Need
+  a proper threadpool I suppose.
+* Rolled and released as 0.8.0
+----------------------------
+revision 1.22
+date: 2008-01-21 13:17:44 -0700;  author: bulliver;  state: Exp;  lines: +98 -30;  commitid: 633c4794fda54567;
+APPVERSION = '0.7.2'
+* Added 'rename' and 'copy' support thanks to patches from
+Ian Young <youngian@grinnell.edu>
+----------------------------
+revision 1.21
+date: 2008-01-14 12:13:15 -0700;  author: bulliver;  state: Exp;  lines: +17 -10;  commitid: 7dd8478bb41d4567;
+APPVERSION = '0.7.1'
+* Fixed flac encoding bug and updated various ebuilds thanks to prompting by
+  Ian Young <youngian [AT] grinnell.edu>
+----------------------------
+revision 1.20
+date: 2007-12-10 16:33:28 -0700;  author: bulliver;  state: Exp;  lines: +605 -151;  commitid: 6912475dca234567;
+APPVERSION="0.7.0"
+Another huge update.
+* Added support for True Audio format.
+* Added support for Speex format.
+* Added support for OptimFROG format.
+* Added support for cdr and cdda (Redbook CD audio) format.
+* Added support for aif/aiff/aifc/aiffc (Apple audio) format.
+* Added support for au/snd (Sun audio, u-Law) format.
+* Added support for mp2 format (Anyone still use it?).
+* Added support for 'gogo' and 'bladeenc' as alternative mp3 encoders (lame is still the default).
+* Added support for two additional id3 tagging libraries, and changed the default to ruby-mp3info (pure Ruby).
+* The script will now properly mirror the directory structure when using '-D' with '-r'.
+* Added code to check for conversion tools before trying to use them, and print sane error messages if they are not found.
+I think that is all for now.
+----------------------------
+revision 1.19
+date: 2007-06-26 15:48:36 -0600;  author: bulliver;  state: Exp;  lines: +506 -289;  commitid: 6b94468182954567;
+APPVERSION="0.6.0"
+Holy Spicolli! This has got to be the biggest update since releasing the first version. Literally _hundreds_ of changes:
+* For the Lawyers: I have decided to switch from the Artistic License to the GPL. Why fight it?
+* Vastly improved and cleaned up the README.
+* Vastly improved and cleaned up the manpage.
+* Many cleanups in the code itself:
+    * Changed eg: 'opts[1]' to 'opts[:verbose]' to improve self-documentation.
+    * Changed eg: 'opts['verbose']' to 'opts[:verbose]' (for the hell of it!).
+    * Changed several unwieldy if/else's to case statements.
+    * Changed eg: "#{@fileroot + '.wav'}" to "#{@fileroot}.wav" (what the hell was I smoking when I wrote _that_ code?).
+    * Consolidated redundant tag class dispatching code in Convert class.
+    * Consolidated redundant method dispatching code in dispatchFile method.
+    * Other purely cosmetic cleanups.
+* Added support for encoding/decoding Musepack files.
+* Added support for encoding/decoding Wavpack files.
+* Added support for APEv2 tags thanks to ruby-apetag. As an added bonus, Wavpack and Musepack both use APEv2 tags, so it's a 3-for-1 special deal!
+* Changed m4a et all tag handling. Now we try to use MP4Info lib first, and fall back on 'faad -i'.
+* Changed Vorbis comment tag handling. Even though it was perfectly acceptable according to the license terms, I still always felt guilty about
+    incorporating Guillaume Pierronnet's OggInfo code directly into the script. So: we now use his OggInfo lib by default, and fall back to
+    parsing the output of the 'ogginfo' binary if the lib is not found. Same end result, and I can sleep at night ;)
+* Added '-p' and '--pretend' option for previewing what the sneetch is going to do.
+* Added to code create the OUTDIR if it doesn't exist, when using '-D' or '--out-directory' option.
+* What else do you need?
+Rolled and released as '0.6.0'
+----------------------------
+revision 1.18
+date: 2007-06-19 15:59:48 -0600;  author: bulliver;  state: Exp;  lines: +16 -27;  commitid: 588a4678511f4567;
+APPVERSION="0.5.2"
+* Added code to get libraries inastalled via gems to work.
+* Also, fixed bug reported by Olav Ekkje <ekkje AT stud DOT ntnu DOT no>
+  concerning MPEG-4 bitrate sanity checks.
+----------------------------
+revision 1.17
+date: 2007-04-17 14:59:20 -0600;  author: bulliver;  state: Exp;  lines: +186 -55;  commitid: 7a254625350a4567;
+APPVERSION="0.5.1"
+* Added '--sanitize' option
+* Rolled and released as 0.5.1
+----------------------------
+revision 1.16
+date: 2007-04-08 16:49:53 -0600;  author: bulliver;  state: Exp;  lines: +67 -17;  commitid: 1e14461970d34567;
+APPVERSION="0.5.1"
+* Added support for Monkey's Audio (*.ape) files thanks to Peter H <peterh_hretep@yahoo.com>.
+* Added additional metatag sanitization.
+* Not releasing yet...
+----------------------------
+revision 1.15
+date: 2006-09-24 18:02:06 -0600;  author: bulliver;  state: Exp;  lines: +389 -182;  commitid: 759d451719574567;
+APPVERSION="0.5.0"
+* Added '-c' and '--compression' to pass Flac compression value.
+* Added a _huge_ amount of error checking, including:
+    * Ensuring values passed to bitrate, quality, and compression are sane.
+    * Ensuring file/directory arguments are sane.
+    * More intelligent error messages, but they are still not perfect.
+* Added '--strict' and '--pedantic' flags.
+    These will stop the script on recoverable errors.
+* Fixed bug in m4a tag parsing, whereby values would be offset if a tag was missing.
+* Added large amount of exit status codes to the bottom of the script.
+    And changed the script to use them ;)
+* Added support to read Vorbis Comments in Flac files. Requires flacinfo-rb.
+----------------------------
+revision 1.14
+date: 2006-09-08 02:10:09 -0600;  author: bulliver;  state: Exp;  lines: +96 -50;  commitid: 749a450124fb4567;
+APPVERSION="0.4.3"
+* Added code so GENREID numbers are translated to strings. IE:
+   "07" => "Hip-Hop" etc...
+* Cleaned up some comments
+----------------------------
+revision 1.13
+date: 2006-09-01 00:30:12 -0600;  author: bulliver;  state: Exp;  lines: +3 -3;  commitid: 597144f7d3204567;
+APPVERSION=0.4.2
+* Got rid of very stupid bug line 553:
+     if not myopts[4] == nil
+       to
+     if not myopts[4] == ""
+* Sorry folks! Stay away from 0.4.1
+----------------------------
+revision 1.12
+date: 2006-08-29 15:18:07 -0600;  author: bulliver;  state: Exp;  lines: +81 -67;  commitid: 16c44f4ae3f4567;
+APPVERSION="0.4.1"
+Just a bugfix release.
+* Fixed mp3 id3 tag parsing
+    I had the version 2.x tags all wrong. Sorry!
+    You guys can send in bug reports you know!
+* Fixed -D/--out-directory option
+    Files are now actually written to the directory specified,
+    not just converted then moved.
+----------------------------
+revision 1.11
+date: 2006-08-25 15:39:00 -0600;  author: bulliver;  state: Exp;  lines: +43 -14;  commitid: 6e6344ef6c1a4567;
+APPVERSION=0.4
+* Added checks so original file is not deleted if the conversion fails when
+    using '--delete'.
+* Support for faac '--bitrate' option. Thanks to Petri Tanninen!
+* Fixed double-quote in the meta-tag bug.
+* Fixed script so it doesn't say "Wrote : foobar.file" when it actually failed.
+    Yersh....
+* Finally implemented '-D' or '--out-directory' option. Files are written in
+    place, then moved.
+* Rolled and released as 0.4. Youpi!!!
+----------------------------
+revision 1.10
+date: 2006-08-12 16:29:56 -0600;  author: bulliver;  state: Exp;  lines: +92 -84;  commitid: 676d44de55904567;
+APPVERSION="0.3.2"
+Placed ogg meta-tag code between begin..rescue for extra error checking
+Changed all global option variables to a Struct: No more globals!
+Added "files.sort!" so files are converted in alphabetical order
+----------------------------
+revision 1.9
+date: 2006-08-07 13:44:46 -0600;  author: bulliver;  state: Exp;  lines: +30 -15;  commitid: 326244d797444567;
+Added 'm4b' to INTOK (Not sure why I forgot it...)
+Added "'-DX'  or '--out-directory=X'" line to showUsage
+Changed checkTags to dump empty tags ie: tag=""; tag=" "; tag="           "
+Changed Mp3MetaTags to handle mp3s with no @tags.version attribute
+Set up housekeeping for $outdir to normalize pathname
+  * $outdir still not implemented in Convert
+----------------------------
+revision 1.8
+date: 2006-06-29 17:26:50 -0600;  author: bulliver;  state: Exp;  lines: +3 -6;  commitid: 85344a4618d4567;
+APPVERSION=0.3
+* Updated, tested, seems all right
+* Rolled and released as 0.3
+* Enjoy!
+----------------------------
+revision 1.7
+date: 2006-06-29 16:29:16 -0600;  author: bulliver;  state: Exp;  lines: +21 -14;  commitid: 73f144a453574567;
+APPVERSION = 0.2.2
+* Updated OUTOK to include aliased method output fomats
+* Updated --help output
+* Added a few tweaks to wavToM4a to account for mp4, aac, m4b output
+* implemented --recursive option (In 1 line of code, Ruby rules!)
+----------------------------
+revision 1.6
+date: 2006-06-29 15:27:04 -0600;  author: bulliver;  state: Exp;  lines: +35 -4;  commitid: 5f9944a445004567;
+APPVERSION=0.2.1
+* Added WmaMetaTags class
+  requires wmainfo-rb library to retreive tags
+* added aliases for wavToM4b, wavToMp4, wavToAac
+  All does the same thing, just a different file extension if you want it!
+----------------------------
+revision 1.5
+date: 2006-06-13 17:01:48 -0600;  author: bulliver;  state: Exp;  lines: +79 -70;  commitid: 1b13448f42634567;
+APPVERSION = '0.2'
+* Added a few more error checks and whatnot, cleaned it up, and made it accurate.
+* Added "--ignore-tag-errors" to lame command (doesn't like genre='Unknown', prefers 'Other')
+   Should I make 'Other' the default?
+* After some testing I have decided to make this the first pyublic release
+   Godspeed sneetchalizer-0.2!
+----------------------------
+revision 1.4
+date: 2006-06-12 23:45:55 -0600;  author: bulliver;  state: Exp;  lines: +84 -67;  commitid: 5710448e502c4567;
+APPVERSION = '0.1.2'
+* Moved warn() to caution()
+* Fixed showUsage so it's accurate
+* Added infile support for aac, mp4, m4b
+* Added quality/bitrate options for lame/oggenc
+* Added sanity test for '--out' argument
+----------------------------
+revision 1.3
+date: 2006-06-12 20:11:32 -0600;  author: bulliver;  state: Exp;  lines: +114 -40;  commitid: 31e448e114a4567;
+APPVERSION = '0.1.1'
+* Added checkTags to MetaTags
+* Added exception handler for using ID3
+* Rewrote OggMetaTags to grab tags directly, rather than using ogginfo.rb
+    Most of the code in extractTag and findPage is verbatim from ogginfo.rb
+    Credit to Guillaume Pierronnet :: http://ruby-ogginfo.rubyforge.org/
+* Added checkToolkit, though it is not yet used.
+    Need to rethink how to implement a global toolkit check once per run
+----------------------------
+revision 1.2
+date: 2006-06-11 02:47:42 -0600;  author: bulliver;  state: Exp;  lines: +2 -2;  commitid: 771448bd84e4567;
+First import to cvs. The script is mostly functional, if not a little rough
+around the edges. Keeping at 0.1. Hopefully get it good enough to release
+to the public as 0.2.
+----------------------------
+revision 1.1
+date: 2006-06-11 00:05:22 -0600;  author: bulliver;  state: Exp;  commitid: 52fa448bb2a24567;
+branches:  1.1.1;
+Initial revision
+----------------------------
+revision 1.1.1.1
+date: 2006-06-11 00:05:22 -0600;  author: bulliver;  state: Exp;  lines: +0 -0;  commitid: 52fa448bb2a24567;
+initial import into CVS
+=============================================================================

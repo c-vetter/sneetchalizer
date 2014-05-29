@@ -1,0 +1,229 @@
+[Desktop Entry]
+ServiceTypes=audio/*,video/*,application/x-flash-video
+Actions=AAC;AIF;AIFC;AIFF;AIFFC;APE;AU;CAF;CDR;CDDA;FAP;FLAC;GSM;IRCAM;MAT;MAT4;MAT5;M4A;M4B;MPC;MPP;MP2;MP3;MP4;NIST;OFR;OFS;OGG;PAF;PVF;RAW;SDS;SD2;SF;SND;SPX;SVX;TTA;VOC;VOX;WAV;WMA;WV;W64;XI;
+X-KDE-Submenu=Convert with sneetchalizer
+
+[Desktop Action AAC]
+Name=To .aac   (MPEG-4 Part 14)
+Icon=sound
+Exec=sneetchalizer --out=aac %F &
+
+[Desktop Action AIF]
+Name=To .aif   (Audio Interchange File Format)
+Icon=sound
+Exec=sneetchalizer --out=aif %F &
+
+[Desktop Action AIFC]
+Name=To .aifc   (Audio Interchange File Format)
+Icon=sound
+Exec=sneetchalizer --out=aifc %F &
+
+[Desktop Action AIFF]
+Name=To .aiff   (Audio Interchange File Format)
+Icon=sound
+Exec=sneetchalizer --out=aiff %F &
+
+[Desktop Action AIFFC]
+Name=To .aiffc   (Audio Interchange File Format)
+Icon=sound
+Exec=sneetchalizer --out=aiffc %F &
+
+[Desktop Action APE]
+Name=To .ape   (Monkey's Audio)
+Icon=sound
+Exec=sneetchalizer --out=ape %F &
+
+[Desktop Action AU]
+Name=To .au   (Sun Audio)
+Icon=sound
+Exec=sneetchalizer --out=au %F &
+
+[Desktop Action CAF]
+Name=To .caf   (Apple Core Audio File)
+Icon=sound
+Exec=sneetchalizer --out=caf %F &
+
+[Desktop Action CDR]
+Name=To .cdr   ('Red Book' Compact Disc Digital Audio)
+Icon=sound
+Exec=sneetchalizer --out=cdr %F &
+
+[Desktop Action CDDA]
+Name=To .cdda   ('Red Book' Compact Disc Digital Audio)
+Icon=sound
+Exec=sneetchalizer --out=cdda %F &
+
+[Desktop Action FAP]
+Name=To .fap   (Ensoniq PARIS)
+Icon=sound
+Exec=sneetchalizer --out=fap %F &
+
+[Desktop Action FLAC]
+Name=To .flac   (Free Lossless Audio CODEC)
+Icon=sound
+Exec=sneetchalizer --out=flac %F &
+
+[Desktop Action GSM]
+Name=To .gsm   (GSM 06.10 Lossy Speech Compression)
+Icon=sound
+Exec=sneetchalizer --out=gsm %F &
+
+[Desktop Action IRCAM]
+Name=To .ircam   (Berkeley/IRCAM/CARL)
+Icon=sound
+Exec=sneetchalizer --out==ircam %F &
+
+[Desktop Action MAT]
+Name=To .mat   (GNU Octave 2.0 / Matlab 4.2)
+Icon=sound
+Exec=sneetchalizer --out=mat %F &
+
+[Desktop Action MAT4]
+Name=To .mat4   (GNU Octave 2.0 / Matlab 4.2)
+Icon=sound
+Exec=sneetchalizer --out=mat4 %F &
+
+[Desktop Action MAT5]
+Name=To .mat5   (GNU Octave 2.1 / Matlab 5.0)
+Icon=sound
+Exec=sneetchalizer --out=mat5 %F &
+
+[Desktop Action M4A]
+Name=To .m4A   (MPEG-4 Part 14)
+Icon=sound
+Exec=sneetchalizer --out=m4a %F &
+
+[Desktop Action M4B]
+Name=To .m4b   (MPEG-4 Part 14)
+Icon=sound
+Exec=sneetchalizer --out=m4b %F &
+
+[Desktop Action MP2]
+Name=To .mp2   (MPEG-1 Audio Layer II)
+Icon=sound
+Exec=sneetchalizer --out=mp2 %F &
+
+[Desktop Action MP3]
+Name=To .mp3   (MPEG-1 Audio Layer III)
+Icon=sound
+Exec=sneetchalizer --out=mp3 %F &
+
+[Desktop Action MP4]
+Name=To .mp4   (MPEG-4 Part 14) 
+Icon=sound
+Exec=sneetchalizer --out=mp4 %F &
+
+[Desktop Action MPC]
+Name=To .mpc   (Musepack)
+Icon=sound
+Exec=sneetchalizer --out=mpc %F &
+
+[Desktop Action MPP]
+Name=To .mpp   (Musepack)
+Icon=sound
+Exec=sneetchalizer --out=mpp %F &
+
+[Desktop Action NIST]
+Name=To .nist   (NIST Sphere)
+Icon=sound
+Exec=sneetchalizer --out=nist %F &
+
+[Desktop Action OFR]
+Name=To .ofr   (OptimFROG)
+Icon=sound
+Exec=sneetchalizer --out=ofr %F &
+
+[Desktop Action OFS]
+Name=To .ofs   (OptimFROG DualStream)
+Icon=sound
+Exec=sneetchalizer --out=ofs %F &
+
+[Desktop Action OGG]
+Name=To .ogg   (Ogg Vorbis)
+Icon=sound
+Exec=sneetchalizer --out=ogg %F &
+
+[Desktop Action PAF]
+Name=To .paf   (Ensoniq PARIS)
+Icon=sound
+Exec=sneetchalizer --out=paf %F &
+
+[Desktop Action PVF]
+Name=To .pvf   (Portable Voice Format)
+Icon=sound
+Exec=sneetchalizer --out=pvf %F &
+
+[Desktop Action RAW]
+Name=To .raw   (header-less)
+Icon=sound
+Exec=sneetchalizer --out=raw %F &
+
+[Desktop Action SDS]
+Name=To .sds   (Midi Sample Dump Standard)
+Icon=sound
+Exec=sneetchalizer --out=sds %F &
+
+[Desktop Action SD2]
+Name=To .sd2   (Sound Designer II)
+Icon=sound
+Exec=sneetchalizer --out=sd2 %F &
+
+[Desktop Action SF]
+Name=To .sf   (Berkeley/IRCAM/CARL)
+Icon=sound
+Exec=sneetchalizer --out=sf %F &
+
+[Desktop Action SND]
+Name=To .snd   (Sun Audio)
+Icon=sound
+Exec=sneetchalizer --out=snd %F &
+
+[Desktop Action SPX]
+Name=To .spx   (Speex)
+Icon=sound
+Exec=sneetchalizer --out=spx %F &
+
+[Desktop Action SVX]
+Name=To .svx   (Amiga IFF/SVX8/SV16)
+Icon=sound
+Exec=sneetchalizer --out=svx %F &
+
+[Desktop Action TTA]
+Name=To .tta   (True Audio)
+Icon=sound
+Exec=sneetchalizer --out=tta %F &
+
+[Desktop Action VOC]
+Name=To .voc   (Creative Labs)
+Icon=sound
+Exec=sneetchalizer --out=voc %F &
+
+[Desktop Action VOX]
+Name=To .vox   (header-less)
+Icon=sound
+Exec=sneetchalizer --out=vox %F &
+
+[Desktop Action WAV]
+Name=To .wav   (Microsoft PCM Audio)
+Icon=sound
+Exec=sneetchalizer --out=wav %F &
+
+[Desktop Action WMA]
+Name=To .wma   (Windows Media Audio)
+Icon=sound
+Exec=sneetchalizer --out=wma %F &
+
+[Desktop Action WV]
+Name=To .wv   (Wavpack)
+Icon=sound
+Exec=sneetchalizer --out=wv %F &
+
+[Desktop Action W64]
+Name=To .w64   (SoundFoundry WAVE 64)
+Icon=sound
+Exec=sneetchalizer --out=w64 %F &
+
+[Desktop Action XI]
+Name=To .xi   (FastTracker 2)
+Icon=sound
+Exec=sneetchalizer --out=xi %F &

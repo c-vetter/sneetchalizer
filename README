@@ -1,0 +1,144 @@
+sneetchalizer version 0.9.0
+
+Manifest:
+
+README                - You're reading it now.
+LICENSE               - A copy of the GPL, under which sneetchalizer is released.
+CHANGES               - sneetchalizer's cvs/svn commit log.
+sneetchalizer         - The script itself.
+sneetchalizer.1       - The manpage for sneetchalizer.
+sneetchalizer.desktop - A KDE service menu for converting with Konqueror.
+install.rb            - A quick and dirty script to install the sneetchalizer.
+
+Install:
+  If you have root/sudo capabilities you can use the included 'install.rb' ruby script
+  to install sneetchalizer to /usr/bin, the manpage to /usr/share/man/man1, and the .desktop
+  file to an appropriate KDE directory. Otherwise you will just have to move them somewhere
+  appropriate manually.
+
+Supported software:
+
+  * lame - for MP3 encoding/decoding
+      http://lame.sourceforge.net/
+  * gogo - for MP3 encoding
+      http://freshmeat.net/projects/gogo/
+  * bladeenc - for MP3 encoding
+      http://freshmeat.net/projects/bladeenc/
+  * oggenc/oggdec - for Ogg Vorbis encoding/decoding
+      http://www.vorbis.com/
+  * speexenc/speexdec - for Speex encoding/decoding
+      http://www.speex.org/
+  * faac/faad - for AAC/M4A encoding/decoding
+      http://www.audiocoding.com/
+  * flac - for Flac encoding/decoding
+      http://flac.sourceforge.net/
+  * mplayer - for WMA encoding/decoding plus all video formats
+      http://www.mplayerhq.hu/
+  * mac - for APE encoding/decoding
+      http://sourceforge.net/projects/mac-port
+  * mppenc/mppdec - for Musepack encoding/decoding
+      http://www.musepack.net/
+  * wavpack/wvunpack - for Wavpack encoding/decoding
+      http://www.wavpack.com/
+  * ttaenc - for True Audio encoding/decoding
+      http://www.true-audio.com/
+  * ofr/ofs for OptimFROG and OptimFROG DualStream encoding/decoding
+      http://www.losslessaudio.org/
+  * sox - for aif/au/mp2/cdr encoding/decoding
+      http://sox.sourceforge.net/
+
+  Note: none of these are strictly 'required' per se. The sneetchalizer does not check
+  that they are installed, (until attempting to use them) but obviously, if you want
+  to encode to MP3 you need a supported mp3 encoder installed and so forth....
+
+Optional software:
+
+  * Guillaume Pierronnet's ruby-mp3info library (to grab mp3 tags)
+      http://rubyforge.org/projects/ruby-mp3info/
+  * Robin Stokers id3lib-ruby library (to grab mp3 tags)
+      http://rubyforge.org/projects/id3lib-ruby/
+  * Tilo Sloboda's ID3 library for Ruby (to grab mp3 tags)
+      http://www.unixgods.org/~tilo/Ruby/ID3-v0.4/docs/index.html
+  * Darren Kirby's wmainfo-rb library (to grab wma tags)
+      http://rubyforge.org/projects/wmainfo/
+  * Darren Kirby's flacinfo-rb library (to grab flac tags)
+      http://rubyforge.org/projects/flacinfo-rb/
+  * Jeremy Evans' ruby-apetag library (to grab Ape, Musepack, and Wavpack tags)
+      http://rubyforge.org/projects/apetag/
+  * Jason Terk's MP4Info library (to grab m4a et all tags)
+      http://rubyforge.org/projects/mp4info/
+  * Guillaume Pierronnet's ruby-ogginfo library (to grab Vorbis comments from ogg files)
+      http://rubyforge.org/projects/ruby-ogginfo/
+
+  The script will still work without these libs, but tags will not be retrieved except
+  for Vorbis comments in Ogg files (by parsing the output of 'ogginfo') and m4a et al tags
+  (by parsing the output of 'faad -i'. In all other cases scratch tags will be created.
+
+  The script will search for and use id3 libs in order: ruby-mp3info, id3lib-ruby, id3.
+
+  Most of these libraries are available to install via Gem. To install wmainfo-rb, for
+  example, you can do:
+
+  # gem install wmainfo-rb
+
+  and it will be downloaded and installed automatically. Libraries that do not have gems
+  will need to be downloaded and installed manually.
+
+Usage:
+
+  Read the manpage for detailed instructions or use the '--help' option.
+
+KDE Servicemenu:
+
+  The KDE Servicemenu creates an entry under the 'action' menu to allow conversions with
+  sneetchalizer when right-clicking supported filetypes in Konqueror. The 'sneetchalizer.desktop'
+  file should be placed in '$KDEDIR/share/apps/konqueror/servicemenus/'. This will be 
+  something like '/usr/kde/3.5/share/apps/konqueror/servicemenus/' for a systemwide install
+  or '~/.kde/share/apps/konqueror/servicemenus/' for a single user.
+
+Bugs:
+
+  Probably. There is a more comprehensive enumeration of bugs/gotchas in the man page.
+  Please send bug reports to: sneetch@badcomputer.org
+  If pasting console output, please run the command with '-v' and '-s' options enabled.
+
+Roadmap:
+
+  Short term plans (ie: for next release or so) include:
+    * Allowing for more than one tool for the same job (ie: mpg321 as well as lame)
+    * Supporting default config files (ie: .sneetchrc)
+  Long term plans/ideas include:
+    * Full-on CD ripper/encoder?
+    * Fix naive threading.
+
+License and Disclaimer:
+
+  This program is released under the GPL. A copy is enclosed in the sneetchalizer tarball.
+  If you make sneetchalizer better the author would appreciate if you send him a copy. This
+  software comes without any warranty, and the author can accept absolutely no responsibility
+  for lost or damaged files.
+
+Author:
+
+  This script was written by Darren Kirby :: d@badcomputer.org :: http://badcomputer.org/
+
+Contributors:
+
+  Vance Morgan <lafeyette_management [AT] comcast.net> noticed and fixed a bug in the install script.
+
+  Peter 'H' <peterh_hretep [AT] yahoo.com> wrote the support for 'ape' (monkey's audio) files as well
+  as some threading code I have not yet incorporated into the script.
+
+  Sam Ockman <ockman [AT] gmail.com> suggested I print a warning if a tag library was not found, and
+  prompted me to write temp files to the outdir so sneetch can be used to convert files from a
+  read-only directory. Good ideas!
+
+  Flac encoding bug and ebuild fixes thanks to Ian Young <youngian [AT] grinnell.edu>
+
+  'rename' and 'copy' functions are also thanks to Ian Young <youngian [AT] grinnell.edu>
+
+  Oleg Lyashko <olegvl@gmail.com> sent in a simple fix to the '-D' or '--outdir' bug.
+
+Date:
+  April 13, 2008.
+

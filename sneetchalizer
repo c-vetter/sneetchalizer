@@ -1,0 +1,2183 @@
+#!/usr/bin/env ruby
+
+#  Author :: Darren Kirby <bulliver@badcomputer.org>
+#  Website :: http://badcomputer.org/unix/code/sneetchalizer/
+#  License :: GPL :: http://www.fsf.org/licensing/licenses/gpl.html
+#
+#  Copyright (C) 2006-2008 Darren Kirby
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+#
+#  Code to convert *.ape (Monkey's Audio) Files was written by
+#  Peter H <peterh_hretep [AT] yahoo.com>
+#
+#  Flac encoding bug and ebuild fixes thanks to
+#  Ian Young <youngian [AT] grinnell.edu>
+#
+#  'rename' and 'copy' support also thanks to
+#  Ian Young <youngian [AT] grinnell.edu>
+#
+#  Oleg Lyashko <olegvl [AT] gmail.com> sent in a simple fix to the
+#  '-D' or '--outdir' bug.
+#
+
+
+#
+#  Boilerplate to get libs installed via gems to work.
+#
+begin
+  require 'rubygems'
+rescue LoadError
+end
+
+APPNAME =    'sneetchalizer'
+APPVERSION = '0.9.0'
+QUIP =       'By far the best software available for turtle-stacking'
+
+#
+#  Supported in formats.
+#
+INTOK = %w/aac aif aifc aiff aiffc ape au caf cdr cdda fap flac gsm ircam m4a m4b mpc mp4 mpp mp3 mp2
+           mat mat4 mat5 nist ofr ofs ogg paf pvf raw sds sd2 sf snd spx svx tta voc vox wav wma wv w64 xi/
+
+#
+#  Supported out formats.
+#
+OUTOK = INTOK + ["copy"]
+
+#
+# Supported Video formats.
+#
+VITOK = %w/asf avi divx flv mkv mpg mpeg mov m4v nsv nuv ogm psp qt rv smk svcd vcd vob wmv /
+
+#
+#  Print info (green).
+#
+def info(msg)
+  system('echo -en $"\\033[0;32m"')
+  puts msg
+  system('echo -en $"\\033[0;39m"')
+end
+
+#
+#  Print warnings (yellow).
+#
+def caution(msg)
+  system('echo -en $"\\033[1;33m"')
+  puts msg
+  system('echo -en $"\\033[0;39m"')
+end
+
+#
+#  Print errors (red).
+#
+def error(msg)
+  system('echo -en $"\\033[1;31m"')
+  puts "*** #{msg} ***"
+  system('echo -en $"\\033[0;39m"')
+end
+
+#
+#  'short help' serves as a quick reminder of options.
+#
+def short_help
+  print <<USAGE
+Usage: #{APPNAME} [options] file1 [file2..x] directory1 [directory2..x]
+  Options:
+     -h                            --help
+     -r   or --recursive           -d or --delete
+     -v   or --verbose             -T or --threads[=N]
+     -s   or --show-output         -z or --sanitize
+     -p   or --pretend             -S or --strict
+     -t   or --terminate           -P or --pedantic
+     -D X or --out-directory='X'   -b or --bitrate
+     -n X or --rename='X'          -c or --compression
+     -q   or --quality             -G or --gogo
+     -B   or --bladeenc            --stasis
+     --in='X'                      --out='X'
+     --tt or --title               --ta or --artist
+     --tl or --album               --ty or --year
+     --tc or --comment             --tg or --genre
+     --tn or --trackn
+     --in-optionhook='X'           --out-optionhook='X'
+USAGE
+  exit 0
+end
+
+#
+#  'long help' gives full usage details.
+#
+def long_help
+
+  #
+  #  Print 13 tokens per line.
+  #
+  def pp(l)
+    s = ""
+    l.sort!.each_index do |n|
+      s += "'#{l[n]}' "
+      s += "\n            " if n % 13 == 0 && n != 0
+    end
+    s
+  end
+
+  print <<USAGE
+Usage: #{APPNAME} [options] file1 [file2..x] directory1 [directory2..x]
+    General Options:
+        '-h'                            Show quick option reminder.
+        '--help'                        Show detailed usage.
+        '-d'   or '--delete'            Delete input files after successful conversion.
+        '-r'   or '--recursive'         Descend recursively into directory args for files to convert.
+        '-v'   or '--verbose'           Make #{APPNAME} more chatty.
+        '-s'   or '--show-output'       Show conversion command output.
+        '-p'   or '--pretend'           Don't convert anything, just show what would be done.
+        '-t'   or '--terminate'         Terminate #{APPNAME} options.
+        '-D X' or '--out-directory=X'   Write all outfiles to directory 'X'.
+        '-T N' or '--threads=N'         EXPERIMENTAL. Run 'N' concurrent jobs. Default 2.
+        '-z'   or '--sanitize'          Strip badchars from filename (see manpage).
+        '-S'   or '--strict'            Stop running on recoverable errors.
+        '-P'   or '--pedantic'          Stop running on tag errors (implies --strict).
+        '--stasis'                      Preserve timestamp (mtime) of original file.
+
+    Rename Option:
+        '-n X' or '--rename=X'          Rename all outfiles (and temporary wavs) according to string 'X':
+
+        'X' is a string with special designators to be pulled from the file tags.
+        The following options are available:
+          %t Song title        %b Album title
+          %n Track number      %a Artist name
+          %y Year              %g Genre
+          %c Comment field
+        Directories may be created with this command, as in "%b/%n - %t".  The default value of X is "%n %t".
+
+    Bitrate/Quality/Compression Options:
+        '-b'   or '--bitrate'           Bitrate. Passed directly to lame/gogo/bladeenc/oggenc/faac.
+        '-q'   or '--quality'           Quality. Passed directly to lame/gogo/oggenc/mppenc.
+        '-c'   or '--compression'       Flac/mac compression.
+
+    Format Options:
+        '--out=X'             Output format. Default is 'wav'.
+        '--in=X'              Input format(s). Default is 'wav'.
+
+        Valid output formats are: 
+            #{pp(OUTOK)}
+
+        Valid audio input formats are:
+            #{pp(INTOK)}
+
+        Valid video input formats are:
+            #{pp(VITOK)}
+
+        You can specify multiple input formats using a comma: 'mp3,m4a,wma'.
+        The "copy" output option copies files directly, bypassing decoding/encoding steps 
+          (useful in conjunction with --rename).
+        Input format is only neccesary when passing directory arguments.
+
+    Tag Options:
+        '--tt' or '--title'             Set 'title' tag.
+        '--ta' or '--artist'            Set 'artist' tag.
+        '--tl' or '--album'             Set 'album' tag.
+        '--ty' or '--year'              Set 'year' tag.
+        '--tc' or '--comment'           Set 'comment' tag.
+        '--tg' or '--genre'             Set 'genre' tag.
+        '--tn' or '--trackn'            Set 'track number' tag.
+
+        The short and long versions are different in an important way: Using the long version
+        will clobber any existing tags. The short version will only set the tag if the existing
+        tag has no value. Note that these tags will be placed in _every_ outfile during the run.
+
+    Alternative Encoder/Decoder Options:
+        '-G' or '--gogo'                Use gogo to encode mp3 files.
+        '-B' or '--bladeenc'            Use bladeenc to encode mp3 files.
+
+    Special Options:
+        '--in-optionhook=ARG'           Add ARG to infile conversion command.
+        '--out-optionhook=ARG'          Add ARG to outfile conversion command.
+
+USAGE
+  exit 0
+end
+
+#
+#  Genre hash for ID3 tags.
+#  Cut 'n' pasted from somewhere ;)
+#
+def genre_strings
+  genre_tags = {
+    0x00 => "Blues", 0x01 => "Classic Rock", 0x02 => "Country", 0x03 => "Dance", 0x04 => "Disco",
+    0x05 => "Funk", 0x06 => "Grunge", 0x07 => "Hip-Hop", 0x08 => "Jazz", 0x09 => "Metal", 0x0A => "New Age",
+    0x0B => "Oldies", 0x0C => "Other", 0x0D => "Pop", 0x0E => "R&B", 0x0F => "Rap", 0x10 => "Reggae",
+    0x11 => "Rock", 0x12 => "Techno", 0x13 => "Industrial", 0x14 => "Alternative", 0x15 => "Ska",
+    0x16 => "Death Metal", 0x17 => "Pranks", 0x18 => "Soundtrack", 0x19 => "Euro-Techno", 0x1A => "Ambient",
+    0x1B => "Trip-Hop", 0x1C => "Vocal", 0x1D => "Jazz+Funk", 0x1E => "Fusion", 0x1F => "Trance",
+    0x20 => "Classical", 0x21 => "Instrumental", 0x22 => "Acid", 0x23 => "House", 0x24 => "Game",
+    0x25 => "Sound Clip", 0x26 => "Gospel", 0x27 => "Noise", 0x28 => "Alt. Rock", 0x29 => "Bass",
+    0x2A => "Soul", 0x2B => "Punk", 0x2C => "Space", 0x2D => "Meditative", 0x2E => "Instrumental Pop",
+    0x2F => "Instrumental Rock", 0x30 => "Ethnic", 0x31 => "Gothic", 0x32 => "Darkwave", 0x33 => "Techno-Industrial",
+    0x34 => "Electronic", 0x35 => "Pop-Folk", 0x36 => "Eurodance", 0x37 => "Dream", 0x38 => "Southern Rock",
+    0x39 => "Comedy", 0x3A => "Cult", 0x3B => "Gangsta", 0x3C => "Top 40", 0x3D => "Christian Rap",
+    0x3E => "Pop/Funk", 0x3F => "Jungle", 0x40 => "Native US", 0x41 => "Cabaret", 0x42 => "New Wave",
+    0x43 => "Psychadelic", 0x44 => "Rave", 0x45 => "Showtunes", 0x46 => "Trailer", 0x47 => "Lo-Fi",
+    0x48 => "Tribal", 0x49 => "Acid Punk", 0x4A => "Acid Jazz", 0x4B => "Polka", 0x4C => "Retro",
+    0x4D => "Musical", 0x4E => "Rock & Roll", 0x4F => "Hard Rock", 0x50 => "Folk", 0x51 => "Folk-Rock",
+    0x52 => "National Folk", 0x53 => "Swing", 0x54 => "Fast Fusion", 0x55 => "Bebop",
+    0x56 => "Latin", 0x57 => "Revival", 0x58 => "Celtic", 0x59 => "Bluegrass", 0x5A => "Avantgarde",
+    0x5B => "Gothic Rock", 0x5C => "Progressive Rock", 0x5D => "Psychedelic Rock", 0x5E => "Symphonic Rock",
+    0x5F => "Slow Rock", 0x60 => "Big Band", 0x61 => "Chorus", 0x62 => "Easy Listening", 0x63 => "Acoustic",
+    0x64 => "Humour", 0x65 => "Speech", 0x66 => "Chanson", 0x67 => "Opera", 0x68 => "Chamber Music",
+    0x69 => "Sonata", 0x6A => "Symphony", 0x6B => "Booty Bass", 0x6C => "Primus", 0x6D => "Porn Groove",
+    0x6E => "Satire", 0x6F => "Slow Jam", 0x70 => "Club", 0x71 => "Tango", 0x72 => "Samba",
+    0x73 => "Folklore", 0x74 => "Ballad", 0x75 => "Power Ballad", 0x76 => "Rhythmic Soul", 0x77 => "Freestyle",
+    0x78 => "Duet", 0x79 => "Punk Rock", 0x7A => "Drum Solo", 0x7B => "Acapella", 0x7C => "Euro-House",
+    0x7D => "Dance Hall", 0x7E => "Goa", 0x7F => "Drum & Bass", 0x80 => "Club-House", 0x81 => "Hardcore",
+    0x82 => "Terror", 0x83 => "Indie", 0x84 => "BritPop", 0x85 => "Negerpunk", 0x86 => "Polsk Punk",
+    0x87 => "Beat", 0x88 => "Christian Gangsta Rap", 0x89 => "Heavy Metal", 0x8A => "Black Metal", 0x8B => "Crossover",
+    0x8C => "Contemporary Christian", 0x8D => "Christian Rock", 0x8E => "Merengue", 0x8F => "Salsa", 0x90 => "Trash Metal"
+  }
+end
+
+module TagDisplayer
+  ATTRIBUTES = %w{title artist album genre year comment tracknum}
+  attr_reader :title, :artist, :album, :genre, :year, :comment, :tracknum
+
+  def to_a
+    ATTRIBUTES.map { |x| send(x) }
+  end
+
+  def to_s
+    space = " "
+    ATTRIBUTES.map { |x| "#{space * 5}#{x.capitalize}:#{space * (10 - x.length)}#{send(x)}" }.join("\n")
+  end
+end
+
+#
+# Class for meta tags.
+# Provides default values if there is no specialized tag class
+#
+class MetaTags
+  include TagDisplayer
+
+  def initialize(filename, opts)
+    @filename = filename
+    @opts = opts
+    check_tags
+  end
+
+  #
+  #  Check for tags passed on the CLI.
+  #
+  def check_tags
+    if @opts[:tags_c] != {}
+      @title    = @opts[:tags_c]['title']    || @title
+      @artist   = @opts[:tags_c]['artist']   || @artist
+      @album    = @opts[:tags_c]['album']    || @album
+      @year     = @opts[:tags_c]['year']     || @year
+      @comment  = @opts[:tags_c]['comment']  || @comment
+      @genre    = @opts[:tags_c]['genre']    || @genre
+      @tracknum = @opts[:tags_c]['tracknum'] || @tracknum
+    end
+
+    if @opts[:tags_nc] != {}
+      @title    == nil ? @opts[:tags_nc]['title']    || @title    : @title
+      @artist   == nil ? @opts[:tags_nc]['artist']   || @artist   : @artist
+      @album    == nil ? @opts[:tags_nc]['album']    || @album    : @album
+      @year     == nil ? @opts[:tags_nc]['year']     || @year     : @year
+      @comment  == nil ? @opts[:tags_nc]['comment']  || @comment  : @comment
+      @genre    == nil ? @opts[:tags_nc]['genre']    || @genre    : @genre
+      @tracknum == nil ? @opts[:tags_nc]['tracknum'] || @tracknum : @tracknum
+    end
+
+    #
+    #  Dump empty tags
+    #
+    @title    = File.basename(@filename, @filename[-4..-1]) if @title == nil || @title =~ /^(\s)*$/
+    @artist   = @title if @artist == nil   || @artist =~  /^(\s)*$/ #  Just whitespace.
+    @album    = 'Unknown' if @album == nil || @album =~  /^(\s)*$/  #   "      "
+    @genre    = 'Unknown' if @genre == nil || @genre =~ /^(\s)*$/   #   "      "
+    @year     = 'Unknown' if @year == nil  || @year =~ /^(\s)*$/    #   "      "
+    @comment  = 'Starbellied using sneetchalizer (http://badcomputer.org/code/sneetchalizer/)' if @comment == nil || @comment =~ /^(\s)*$/
+    @tracknum = 'Unknown' if @tracknum == nil || @tracknum =~ /^(\s)*$/
+
+    if md = /^(\d+)\s+-\s+(.+)$/.match(@title)
+      @title = md[2]
+      @tracknum = md[1]
+      album_dir = File.dirname(@filename)
+      @album = File.basename(album_dir)
+      artist_dir = File.dirname(album_dir)
+      @artist = File.basename(artist_dir)
+    end
+
+    #
+    #  Translate GENREID/CONTENTTYPE number to string.
+    #  Some are just a number (within a string)
+    #  while others are buried in parentheses and whatnot.
+    #
+    if @genre =~ /\d{1,2}/
+      genre_tags = genre_strings()
+      @genre = genre_tags[$&.to_i] #  Last match.
+    end
+
+    if @opts[:sanitize]
+      @title.gsub!(/[,;:'"%@#`]/, '')
+      @artist.gsub!(/[,;:'"%@#`]/, '')
+      @album.gsub!(/[,;:'"%@#`]/, '')
+      @genre.gsub!(/[,;:'"%@#`]/, '')
+      @year.gsub!(/[,;:'"%@#`]/, '')
+      @comment.gsub!(/[,;:'"%@#`]/, '')
+
+    else
+      @title.gsub!('"', "'")      #
+      @artist.gsub!('"', "'")     # Normalize tag quote marks.
+      @album.gsub!('"', "'")      #
+      @genre.gsub!('"', "'")      #
+      @year.gsub!('"', "'")       #
+      @comment.gsub!('"', "'")    #
+
+
+      @title.gsub!('`',"'")       #
+      @album.gsub!('`',"'")       # Backticks break bash.
+      @artist.gsub!('`',"'")      #
+      @genre.gsub!('`', "'")      #
+      @year.gsub!('`', "'")       #
+      @comment.gsub!('`', "'")    #
+    end
+  end
+end
+
+
+#
+# Class for mp3 meta tags.
+#
+class Mp3MetaTags < MetaTags
+  include TagDisplayer
+
+  def initialize(filename, opts)
+    @filename = filename
+    @pedantic = opts[12]
+    @opts = opts
+    @done = nil
+    try_ruby_mp3info
+    try_id3lib unless @done
+    try_id3 unless @done
+    check_tags
+  end
+
+  #
+  # Begin 'ruby-mp3info' (http://rubyforge.org/projects/ruby-mp3info/)
+  #
+  def try_ruby_mp3info
+    begin
+      require 'mp3info'
+    rescue LoadError
+      caution("ruby-mp3info library not found...")
+      exit 17 if @pedantic == 1
+      return
+    end
+
+    begin
+      @tags = Mp3Info.open(@filename)
+      @title = @tags.tag['title'] || nil
+      @artist = @tags.tag['artist'] || nil
+      @album = @tags.tag['album'] || nil
+      @genre = @tags.tag['genre_s'] || @tags.tag['genre'] ||'Other'
+      @year = @tags.tag['year'] || nil
+      @comment = @tags.tag['comments'] || nil
+      @tracknum = @tags.tag['tracknum'] || nil
+    rescue
+      exit 18 if @pedantic == 1
+      check_tags
+    end
+    @done = 1
+  end # End 'ruby-mp3info'
+
+  #
+  # Begin 'id3lib-ruby' (http://id3lib-ruby.rubyforge.org/)
+  #
+  def try_id3lib
+    begin
+      require 'id3lib'
+    rescue LoadError
+      caution("id3lib-ruby library not found...")
+      exit 17 if @pedantic == 1
+      return
+    end
+
+    begin
+      @tags = ID3Lib::Tag.new(@filename)
+      @title = @tags.title || nil
+      @artist = @tags.artist || nil
+      @album = @tags.album || nil
+      @genre = @tags.genre ||'Other'
+      @year = @tags.year || nil
+      @comment = @tags.comment || nil
+      @tracknum = @tags.track || nil
+    rescue
+      exit 18 if @pedantic == 1
+      check_tags
+    end
+    @done = 1
+  end # End 'id3lib-ruby'
+
+  #
+  # Begin 'id3' (http://www.unixgods.org/~tilo/Ruby/ID3-v0.4/docs/index.html)
+  #
+  def try_id3
+    begin
+      require 'id3'
+    rescue LoadError
+      caution("id3.rb library not found... creating scratch tags")
+      exit 17 if @pedantic == 1
+      return
+    end
+
+    def id3v1
+      @title = @tags.tagID3v1['TITLE'] || nil
+      @artist = @tags.tagID3v1['ARTIST'] || nil
+      @album = @tags.tagID3v1['ALBUM'] || nil
+      @genre = @tags.tagID3v1['GENREID'] || 'Other'
+      @year = @tags.tagID3v1['YEAR'] || nil
+      @comment = @tags.tagID3v1['COMMENT'] || nil
+      @tracknum = @tags.tagID3v1['TRACKNUM'] || nil
+    end
+
+    def id3v2
+      @title = @tags.tagID3v2['TITLE']['text'] || nil
+      @artist = @tags.tagID3v2['ARTIST']['text'] || @tags.tagID3v1['BAND'] || nil
+      @album = @tags.tagID3v2['ALBUM']['text'] || nil
+      @genre = @tags.tagID3v2['CONTENTTYPE']['text'] || 'Other' #  No Genre id3 tag in 2.x
+      @year = @tags.tagID3v2['YEAR']['text'] || @tags.tagID3v2['DATE']['text'] || nil
+      @comment = @tags.tagID3v2['COMMENT']['text'] || nil
+      @tracknum = @tags.tagID3v2['TRACKNUM']['text'] || nil
+    end
+
+    begin
+      @tags = ID3::AudioFile.new(@filename)
+      if @tags.version == nil #  Some mp3s with broken tags return nil here...
+        exit 18 if @pedantic == 1
+        return                #  ...so we bail out.
+      end
+
+      if @tags.version.split.size == 2
+        id3v2  # if both version 1 and 2 tags are present, prefer 2
+      elsif @tags.version.split(".")[0] == "1" #  id3 v1.x
+        id3v1
+      else     #  id3 v2.x
+        id3v2
+      end
+
+      check_tags
+    rescue
+      exit 18 if @pedantic == 1
+      check_tags
+    end
+  end # End 'id3' (http://www.unixgods.org/~tilo/Ruby/ID3-v0.4/docs/index.html)
+end
+
+
+#
+#  Class for wma meta tags
+#  Requires wmainfo-rb
+#  http://badcomputer.org/unix/code/wmainfo/
+#
+class WmaMetaTags < MetaTags
+  include TagDisplayer
+
+  def initialize(filename, opts)
+    @filename = filename
+    @pedantic = opts[12]
+    @opts = opts
+
+    begin
+      require 'wmainfo'
+    rescue LoadError
+      caution("wmainfo-rb library not found ... creating scratch tags.")
+      exit 15 if @pedantic == 1
+      check_tags
+    end
+
+    begin
+      song = WmaInfo.new(@filename)
+      @title = song.tags['Title']
+
+      if song.hastag?('Author')
+        @artist = song.tags['Author']
+      else
+        @artist = song.tags['AlbumArtist']
+      end
+
+      @album = song.tags['AlbumTitle']
+      @genre = song.tags['Genre']
+      @year = song.tags['Year']
+      @tracknum = song.tags['TrackNumber']
+
+      check_tags
+    rescue
+      exit 16 if @pedantic == 1
+      check_tags
+    end
+  end
+end
+
+
+#
+#  Class for Flac meta tags.
+#  Requires flacinfo-rb.
+#  http://badcomputer.org/unix/code/flacinfo/
+#
+class FlacMetaTags < MetaTags
+  include TagDisplayer
+
+  def initialize(filename, opts)
+    @filename = filename
+    @pedantic = opts[12]
+    @opts = opts
+
+    begin
+      require 'flacinfo'
+    rescue LoadError
+      caution("flacinfo-rb library not found ... creating scratch tags.")
+      exit 19 if @pedantic == 1
+      check_tags
+    end
+
+    begin
+      song = FlacInfo.new(@filename)
+      song.tags.each do |k,v|
+
+        if k.casecmp("artist") == 0
+          @artist = v
+          next
+
+        elsif k.casecmp("title") == 0
+          @title = v
+          next
+
+        elsif k.casecmp("album") == 0
+          @album = v
+          next
+
+        elsif k.casecmp("genre") == 0
+          @genre = v
+          next
+
+        elsif k.casecmp("date") == 0
+          @year = v
+          next
+
+        elsif k.casecmp("comment") == 0
+          @comment = v
+          next
+
+        elsif k.casecmp("tracknumber") == 0
+          @tracknum = v
+          next
+        end
+
+      end
+      check_tags
+
+    rescue
+      exit 20 if @pedantic == 1
+      check_tags
+    end
+  end
+end
+
+
+#
+#  Class for m4a meta tags.
+#  Requires MP4Info or faad.
+#  http://rubyforge.org/projects/mp4info/
+#
+class M4aMetaTags < MetaTags
+  include TagDisplayer
+
+  def initialize(filename, opts)
+    @filename = filename
+    @pedantic = opts[12]
+    @opts = opts
+
+    begin
+      require 'mp4info'
+      use_mp4_info_lib
+    rescue LoadError
+      caution("mp4info library not found ... trying 'faad' binary.")
+      exit 24 if @pedantic == 1
+      use_faad_bin
+    end
+
+    check_tags
+  end
+
+  def use_mp4_info_lib
+    begin
+      tags = MP4Info.open(@filename)
+      @title    = tags.send("NAM")
+      @artist   = tags.send("ART")
+      @album    = tags.send("ALB")
+      @genre    = tags.send("GNRE")
+      @year     = tags.send("DAY")
+      @comment  = tags.send("CMT")
+      num       = tags.send("TRKN")
+      @tracknum = "#{num[0]}/#{num[1]}"
+
+    rescue
+      use_faad_bin
+    end
+  end
+
+  def use_faad_bin
+    begin
+      tags = `faad -i "#@filename" 2>&1`.split("\n")
+      tags.delete("")
+      xtags = {}
+      re = /title:|artist:|album:|genre:|track:|totaltracks:|comment:|date:/i
+
+      #
+      #  This ugly line builds a dict of 'tag'=>'value' pairs.
+      #
+      tags.each { |line| xtags["#{line.split(":")[0]}"] = line.split(":")[1..-1].join("").strip if line =~ re }
+
+      @title   = xtags["title"]
+      @artist  = xtags["artist"]
+      @album   = xtags["album"]
+      @genre   = xtags["genre"]
+      @year    = xtags["date"]
+      @comment = xtags["comment"]
+      num      = xtags["track"]
+      total    = xtags["totaltracks"]
+
+      if xtags["totaltracks"] != nil
+        @tracknum = "#{num}/#{total}"
+      else
+        @tracknum = num
+      end
+    rescue
+      exit 14 if @pedantic == 1
+    end
+  end
+end
+
+
+#
+#  Class for ogg meta tags.
+#  Requires OggInfo (ruby-lib) or ogginfo (binary).
+#  http://rubyforge.org/projects/ruby-ogginfo/
+#
+class OggMetaTags < MetaTags
+  include TagDisplayer
+
+  def initialize(filename, opts)
+    @filename = filename
+    @pedantic = opts[12]
+    @opts = opts
+
+    begin
+      require 'ogginfo'
+      use_ogginfo_lib
+    rescue LoadError
+      caution("ogginfo library not found ... trying 'ogginfo' binary.")
+      exit 23 if @pedantic == 1
+      use_ogginfo_bin
+    end
+
+    check_tags
+  end
+
+  def use_ogginfo_lib
+    begin
+      song = OggInfo.new(@filename)
+      song.tag.each do |k,v|
+        if k =~ /artist/i
+          @artist = v
+          next
+
+        elsif k =~ /title/i
+          @title = v
+          next
+
+        elsif k =~ /album/i
+          @album = v
+          next
+
+        elsif k =~ /genre/i
+          @genre = v
+          next
+
+        elsif k =~ /date/i
+          @year = v
+          next
+
+        elsif k =~ /description/i
+          @comment = v
+          next
+
+        elsif k =~ /tracknumber/i
+          @tracknum = v
+          next
+        end
+      end
+    rescue
+      exit 13 if @pedantic == 1
+      use_ogginfo_bin
+    end
+  end
+
+  def use_ogginfo_bin
+    begin
+      tags = `ogginfo "#@filename"`.split("\n")
+      tags.delete("")
+      xtags = {}
+      re = /title=|artist=|album=|genre=|tracknumber=|description=|date=/i
+
+      #
+      #  This uglier block builds a dict of 'tag'=>'value' pairs.
+      #
+      tags.each do |line|
+        line.strip!
+        xtags["#{line.split("=")[0]}"] = line.split("=")[1..-1].join("").strip if line =~ re
+      end
+
+      @title    = xtags["title"]       || xtags["Title"]
+      @artist   = xtags["artist"]      || xtags["Artist"]
+      @album    = xtags["album"]       || xtags["Album"]
+      @genre    = xtags["genre"]       || xtags["Genre"]
+      @year     = xtags["date"]        || xtags["Date"]
+      @comment  = xtags["description"] || xtags["description"]
+      @tracknum = xtags["tracknumber"] || xtags["Tracknumber"]
+    rescue
+      exit 13 if @pedantic == 1
+    end
+  end
+end
+
+
+#
+#  Class for ape, wv, and mpc meta tags.
+#  Requires apetag.
+#  http://rubyforge.org/projects/apetag/
+#
+class ApeMetaTags < MetaTags
+  include TagDisplayer
+
+  def initialize(filename, opts)
+    @filename = filename
+    @pedantic = opts[12]
+    @opts = opts
+
+    begin
+      require 'apetag'
+    rescue LoadError
+      caution("apetag library not found ... creating scratch tags.")
+      exit 21 if @pedantic == 1
+      check_tags
+    end
+
+    begin
+      song = ApeTag.new(@filename)
+      title =    song.fields["title"]   || song.fields["Title"]
+      artist =   song.fields["artist"]  || song.fields["Artist"]
+      album =    song.fields["album"]   || song.fields["Album"]
+      genre =    song.fields["genre"]   || song.fields["Genre"]
+      year =     song.fields["date"]    || song.fields["Date"]  || song.fields["year"] || song.fields["Year"]
+      comment =  song.fields["comment"] || song.fields["Comment"]
+      tracknum = song.fields["track"]   || song.fields["Track"] || song.fields["Tracknumber"]
+
+      #
+      #  Fields may have multiple values.
+      #
+      @title = title.join(" ")
+      @artist = artist.join(" ")
+      @album = album.join(" ")
+      @genre = genre.join(" ")
+      @year = year.join(" ")
+      @comment = comment.join(" ")
+      @tracknum = tracknum.join(" ")
+
+      check_tags
+    rescue
+      check_tags
+      exit 22 if @pedantic == 1
+    end
+  end
+end
+
+
+class ConversionError < StandardError
+end
+
+
+class Convert
+    attr_reader :mtime
+  def initialize(filename, fileroot, type, opts)
+    @filename = filename
+    @fileroot = fileroot
+    @type = type
+    @opts = opts
+
+    @mtime = File.stat(@filename).mtime if @opts[:stasis]
+
+    begin
+    print "Working on: "
+    info(File.basename(@filename)) 
+    end unless @opts[:threads]
+
+    case @type
+      when 'ogg'
+        @tags = OggMetaTags.new(@filename, opts)
+      when 'm4a', 'm4b', 'mp4', 'aac'
+        @tags = M4aMetaTags.new(@filename, opts)
+      when 'mp3'
+        @tags = Mp3MetaTags.new(@filename, opts)
+      when 'wma', 'wmv', 'asf'
+        @tags = WmaMetaTags.new(@filename, opts)
+      when 'flac'
+        @tags = FlacMetaTags.new(@filename, opts)
+      when 'ape', 'wv', 'mpc', 'mpp', 'tta', 'ofr', 'ofs'
+        @tags = ApeMetaTags.new(@filename, opts)
+      else
+        @tags = MetaTags.new(@filename, opts)
+    end
+
+    if opts[:rename]
+      name_conversions = {'t' => @tags.title,
+                          'a' => @tags.artist,
+                          'b' => @tags.album,
+                          'g' => @tags.genre,
+                          'y' => @tags.year,
+                          'n' => ('0' + @tags.tracknum.to_s)[-2,2],
+                          'c' => @tags.comment
+                         }
+      newfileroot = opts[:rename]
+      newfileroot = newfileroot.gsub(/%([tabgync])/) { |match| name_conversions[$1] }
+
+      #
+      #  Handle creation of new folders if necessary.
+      #
+      index = 0
+      while (index = newfileroot.index('/', index+1))
+        dir = @opts[:outdir] + newfileroot[0,index]
+        unless File.exist?(dir) == true
+          info("    creating directory #{dir}")
+          Dir.mkdir(dir)
+        end
+      end
+      @fileroot = newfileroot
+    end
+
+    @t = @tags.to_a
+    puts @tags.to_s if @opts[:verbose]
+  end
+
+  def deleteWav
+    File.delete(@opts[:outdir] + @fileroot + '.wav') unless @opts[:pretend]
+  end
+
+  def outputFilename
+    if @opts[:outtype] == 'copy'
+      outext = @type
+    else
+      outext = @opts[:outtype]
+    end
+    return "#{@opts[:outdir]}#{@fileroot}.#{outext}"
+  end
+
+  #
+  # Decoding ops and commands.
+  #
+  def copyFile
+    require 'fileutils'
+    outfile = "#{@opts[:outdir]}#{@fileroot}.#{@type}"
+    FileUtils.cp "#@filename", outfile unless @filename == outfile
+    return true
+  end
+
+  def oggToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/oggdec #{@opts[:inOptionHook]} /
+    command += %Q/--quiet / unless @opts[:showoutput]
+    command += %Q/-o "#{@opts[:outdir]}#{@fileroot}.wav" "#@filename"/
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def m4aToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/faad #{@opts[:inOptionHook]} -o "#{@opts[:outdir]}#{@fileroot}.wav" "#@filename"/
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def mp3ToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/lame #{@opts[:inOptionHook]} /
+    #
+    #  We can't use --silent because it isn't really silent!
+    #
+    command += %Q/--decode "#@filename" "#{@opts[:outdir]}#{@fileroot}.wav"/
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def wmaToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command =  %Q/mplayer #{@opts[:inOptionHook]} -vo null -vc null -af /
+    command += %Q/resample=44100 -ao pcm:file="#{@opts[:outdir]}#{@fileroot}.wav" "#@filename"/
+    command += ' 1>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def flacToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/flac -f #{@opts[:inOptionHook]} /
+    command += '--silent ' unless @opts[:showoutput]
+    command += %Q/-o "#{@opts[:outdir]}#{@fileroot}.wav" --decode "#@filename"/
+    runCommand(command)
+  end
+
+  def apeToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/mac #{@opts[:inOptionHook]} /
+    command += %Q/"#@filename" "#{@opts[:outdir]}#{@fileroot}.wav" -d/
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def wvToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/wvunpack -y #{@opts[:inOptionHook]} /
+    command += %Q/"#@filename" -o "#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def mpcToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/mppdec #{@opts[:inOptionHook]} /
+    command += %Q/"#@filename" "#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def ttaToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/ttaenc #{@opts[:inOptionHook]} /
+    command += %Q/"#@filename" -do "#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def aifToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/sox #{@opts[:inOptionHook]} /
+    command += %Q/"#@filename" "#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def auToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/sox #{@opts[:inOptionHook]} /
+    command += %Q/"#@filename" "#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def mp2ToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/sox #{@opts[:inOptionHook]} /
+    command += %Q/"#@filename" "#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def cdrToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/sox #{@opts[:inOptionHook]} /
+    command += %Q/"#@filename" "#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def ofrToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/ofr #{@opts[:inOptionHook]} /
+    command += '--silent ' unless @opts[:showoutput]
+    command += %Q/"#@filename" --output "#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def ofsToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/ofs #{@opts[:inOptionHook]} /
+    command += '--silent ' unless @opts[:showoutput]
+    command += %Q/"#@filename" --output "#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def spxToWav
+    info("     converting to wav...") unless @opts[:threads]
+    command = %Q/speexdec #{@opts[:inOptionHook]} /
+    command += %Q/"#@filename" "#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def vidToWav
+    info("     converting audio track to wav...") unless @opts[:threads]
+    if not check_for "mplayer"
+      error("mplayer not found!")
+      puts "Please check your PATH and ensure 'mplayer' is installed"
+      exit 43
+    end
+    command = %Q/mplayer -vc dummy -vo null -nortc -ao pcm:file="#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += %Q/"#@filename" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  #
+  #  Encoding ops and commands.
+  #
+  def wavToOgg
+    info("     converting to ogg...") unless @opts[:threads]
+    if not check_for "oggenc"
+      error("No Ogg Vorbis encoder found!")
+      puts "Please check your PATH and ensure 'oggenc' is installed"
+      exit 26
+    end
+    command =  %Q/oggenc #{@opts[:outOptionHook]} /
+    command += @opts[:qrate] != nil ? "-q #{@opts[:qrate]} " : ""
+    command += @opts[:brate] != nil ? "-b #{@opts[:brate]} " : ""
+    command += '--quiet ' unless @opts[:showoutput]
+    command += %Q/-t "#{@t[0]}" -a "#{@t[1]}"  -l "#{@t[2]}" -G "#{@t[3]}" /
+    command += %Q/-d "#{@t[4]}" -c comment="#{@t[5]}" -N "#{@t[6]}" /
+    command += %Q/-o "#{@opts[:outdir]}#{@fileroot}.ogg" "#{@opts[:outdir]}#{@fileroot}.wav"/
+    runCommand(command)
+  end
+
+  def wavToMp3
+    info("     converting to mp3...") unless @opts[:threads]
+    if @opts[:gogo]
+      command = use_gogo
+    elsif @opts[:bladeenc]
+      command = use_bladeenc
+    else
+      if check_for "lame"
+        lame = true
+        command = use_lame
+      elsif check_for "bladeenc"
+        command = use_bladeenc
+      elsif check_for "gogo"
+        command = use_gogo
+      else
+        error("No mp3 encoder found!")
+        puts "Please check your PATH and ensure one of 'lame', 'bladeenc' or 'gogo' is installed"
+        exit 27
+      end
+    end
+    es = runCommand(command)
+    #
+    # We cannot pass tags on the CLI unless we use 'lame'.
+    #
+    write_id3_tags if lame
+    es
+  end
+
+  def use_gogo
+    command =  %Q/gogo #{@opts[:outOptionHook]} /
+    command += @opts[:qrate] != nil ? "-q #{@opts[:qrate]} " : ""
+    command += @opts[:brate] != nil ? "-b #{@opts[:brate]} " : ""
+    command += '-silent ' unless @opts[:showoutput]
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" "#{@opts[:outdir]}#{@fileroot}.mp3"/
+    #
+    # gogo's '-silent' not silent enough ;)
+    #
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+  end
+
+  def use_bladeenc
+    command =  %Q/bladeenc #{@opts[:outOptionHook]} /
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += @opts[:brate] != nil ? "-br #{@opts[:brate]} " : ""
+    command += ' 1>/dev/null' unless @opts[:showoutput]
+  end
+
+  def use_lame
+    command =  %Q/lame #{@opts[:outOptionHook]} --id3v2-only --ignore-tag-errors /
+    command += @opts[:qrate] != nil ? "-q #{@opts[:qrate]} " : ""
+    command += @opts[:brate] != nil ? "-b #{@opts[:brate]} " : ""
+    command += '--silent ' unless @opts[:showoutput]
+    command += %Q/--tt "#{@t[0]}" --ta "#{@t[1]}"  --tl "#{@t[2]}" --tg "#{@t[3]}" --ty /
+    command += %Q/"#{@t[4]}" --tc "#{@t[5]}" --tn "#{@t[6]}" /
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" "#{@opts[:outdir]}#{@fileroot}.mp3"/
+  end
+
+  def wavToFlac
+    info("     converting to flac...") unless @opts[:threads]
+    if not check_for "flac"
+      error("No Flac encoder found!")
+      puts "Please check your PATH and ensure 'flac' is installed"
+      exit 28
+    end
+    command =  %Q/flac #{@opts[:outOptionHook]} -f --tag="title=#{@t[0]}" --tag="artist=#{@t[1]}" /
+    command += %Q/--tag="album=#{@t[2]}" --tag="genre=#{@t[3]}" --tag="date=#{@t[4]}" /
+    command += %Q/--tag="comment=#{@t[5]}" --tag="tracknumber=#{@t[6]}" -#{@opts['compression']} /
+    command += '--silent ' unless @opts[:showoutput]
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" -o "#{@opts[:outdir]}#{@fileroot + '.flac'}"/
+    runCommand(command)
+  end
+
+  def wavToM4a
+    info("     converting to #{@opts[:outtype]}...") unless @opts[:threads]
+    if not check_for "faac"
+      error("No Mp4 encoder found!")
+      puts "Please check your PATH and ensure 'faac' is installed"
+      exit 33
+    end
+    command =  %Q/faac #{@opts[:outOptionHook]} /
+    command += @opts['brate'] != nil ? "-b #{@opts['brate']} " : ""
+    command += %Q/-w --title "#{@t[0]}" --artist "#{@t[1]}" --album "#{@t[2]}" --genre "#{@t[3]}" /
+    command += %Q/--year "#{@t[4]}" --comment "#{@t[5]}" --track "#{@t[6]}" "#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += %Q/-o "#{@opts[:outdir]}#{@fileroot}.#{@opts[:outtype]}"/
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    return runCommand(command)
+  end
+
+  def wavToApe
+    info("     converting to ape...") unless @opts[:threads]
+    if not check_for "mac"
+      error("No Monkey's Audio encoder found!")
+      puts "Please check your PATH and ensure 'mac' is installed"
+      exit 34
+    end
+    command =  %Q/mac #{@opts[:outOptionHook]} /
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.#{@opts[:outtype]}"/
+    command += @opts[:compression] != nil ? " -c#{@opts[:compression]} " : " -c2000"
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    es = runCommand(command)
+    #
+    # No way to write tags on the CLI with 'mac'
+    # so we write them with apetag after encoding.
+    #
+    write_ape_tags
+    es
+  end
+
+  def wavToWv
+    info("     converting to wv...") unless @opts[:threads]
+    if not check_for "wavpack"
+      error("No Wavpack encoder found!")
+      puts "Please check your PATH and ensure 'wavpack' is installed"
+      exit 35
+    end
+    command =  %Q/wavpack #{@opts[:outOptionHook]} -w "title=#{@t[0]}" -w "artist=#{@t[1]}" /
+    command += %Q/-w "album=#{@t[2]}" -w "genre=#{@t[3]}" -w "year=#{@t[4]}" /
+    command += %Q/-w "comment=#{@t[5]}" -w "track=#{@t[6]}" /
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def wavToMpc
+    info("     converting to #{@opts[:outtype]}...") unless @opts[:threads]
+    if not check_for "mppenc"
+      error("No Musepack encoder found!")
+      puts "Please check your PATH and ensure 'mppenc' is installed"
+      exit 36
+    end
+    command =  %Q/mppenc #{@opts[:outOptionHook]} --title "#{@t[0]}" --artist "#{@t[1]}" /
+    command += %Q/--album "#{@t[2]}" --genre "#{@t[3]}" --year "#{@t[4]}" /
+    command += %Q/--comment "#{@t[5]}" --track "#{@t[6]}" --overwrite /
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" "#{@fileroot}.#{@opts[:outtype]}"/
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def wavToTta
+    info("     converting to tta...") unless @opts[:threads]
+    if not check_for "ttaenc"
+      error("No True Audio encoder found!")
+      puts "Please check your PATH and ensure 'ttaenc' is installed"
+      exit 37
+    end
+    command = %Q/ttaenc #{@opts[:inOptionHook]} /
+    command += %Q/-e "#{@opts[:outdir]}#{@fileroot}.wav" -o "#{@opts[:outdir]}#{@fileroot}.tta" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    es = runCommand(command)
+    write_ape_tags
+    es
+  end
+
+  def wavToMp2
+    info("     converting to mp2...") unless @opts[:threads]
+    if not check_for "sox"
+      error("No Mp2 encoder found!")
+      puts "Please check your PATH and ensure 'sox' is installed"
+      exit 38
+    end
+    command = %Q/sox #{@opts[:inOptionHook]} /
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" "#{@opts[:outdir]}#{@fileroot}.mp2" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def wavToSox
+    info("     converting to #{@opts[:outtype]}...") unless @opts[:threads]
+    if not check_for "sox"
+      error("No #{@opts[:outtype]} encoder found!")
+      puts "Please check your PATH and ensure 'sox' is installed"
+      exit 38
+    end
+    command = %Q/sox #{@opts[:inOptionHook]} /
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" "#{@opts[:outdir]}#{@fileroot}.#{@opts[:outtype]}" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def wavToOfr
+    info("     converting to ofr...") unless @opts[:threads]
+    if not check_for "ofr"
+      error("No OptimFROG encoder found!")
+      puts "Please check your PATH and ensure 'ofr' is installed"
+      exit 39
+    end
+    command = %Q/ofr #{@opts[:inOptionHook]} /
+    command += '--silent ' unless @opts[:showoutput]
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" --output "#{@opts[:outdir]}#{@fileroot}.ofr" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    es = runCommand(command)
+    write_ape_tags
+    es
+  end
+
+  def wavToOfs
+    info("     converting to ofs...") unless @opts[:threads]
+    if not check_for "ofs"
+      error("No OptimFROG encoder found!")
+      puts "Please check your PATH and ensure 'ofs' is installed"
+      exit 39
+    end
+    command = %Q/ofs #{@opts[:inOptionHook]} /
+    command += '--silent ' unless @opts[:showoutput]
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" --output "#{@opts[:outdir]}#{@fileroot}.ofs" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    es = runCommand(command)
+    write_ape_tags
+    es
+  end
+
+  def wavToSpx
+    info("     converting to spx...") unless @opts[:threads]
+    if not check_for "speexenc"
+      error("No Speex encoder found!")
+      puts "Please check your PATH and ensure 'sox' is installed"
+      exit 40
+    end
+    command = %Q/speexenc #{@opts[:inOptionHook]} -u /
+    command += %Q/--author "#{@t[1]}" --title "#{@t[0]}" /
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav" "#{@opts[:outdir]}#{@fileroot}.spx" /
+    command += ' 2>/dev/null' unless @opts[:showoutput]
+    runCommand(command)
+  end
+
+  def wavToWma
+    info("     converting to wma...") unless @opts[:threads]
+    if not check_for "mplayer"
+      error("No WMA encoder found!")
+      puts "Please check your PATH and ensure 'mplayer' is installed"
+      exit 42
+    end
+    command = %Q/mplayer -vc dummy -vo null -nortc -ao pcm:file="#{@opts[:outdir]}#{@fileroot}}.wma" /
+    command += %Q/"#{@opts[:outdir]}#{@fileroot}.wav"/
+  end
+
+  private
+  def check_for(app)
+    bindirs = ENV['PATH'].split(":")
+    bindirs.each do |dir|
+      if File.exist?("#{dir}/#{app}")
+        return true
+      end
+    end
+    return false
+  end
+
+  def runCommand(command)
+    #
+    # FIXME: Strip Null byte from command
+    # Unable to track where it originates (suspect Mp3Info)
+    #
+    command.gsub!(0.chr,'')
+
+    if @opts[:verbose]
+      info("     Running:")
+      puts "     " + command
+    end
+
+    if @opts[:pretend]
+      info("     I would run:")
+      puts command
+    else
+      if not system(command)
+        error("Error: #{$?}")
+        print "Failed to write: "
+        info(File.basename(self.outputFilename))
+        exit 10 if @opts[:strict]
+        caution("Skipping #{@filename}")
+        return false
+      end
+    end
+    return true
+  end
+
+  def write_ape_tags
+    begin
+      fh = ApeTag.new("#{@fileroot}.#{@opts[:outtype]}")
+    rescue
+      require 'apetag'
+      fh = ApeTag.new("#{@fileroot}.#{@opts[:outtype]}")
+    end
+
+    fh.update { |fields|
+      fields['Title']   = "#{@t[0]}"
+      fields['Artist']  = "#{@t[1]}"
+      fields['Album']   = "#{@t[2]}"
+      fields['Genre']   = "#{@t[3]}"
+      fields['Year']    = "#{@t[4]}"
+      fields['Comment'] = "#{@t[5]}"
+      fields['Track']   = "#{@t[6]}"
+    }
+  end
+
+  def write_id3_tags
+    begin
+      fh = Mp3Info.open("#{@fileroot}.mp3")
+    rescue
+      require 'mp3info'
+      fh = Mp3Info.open("#{@fileroot}.mp3")
+    end
+    fh.tag.title    = @t[0]
+    fh.tag.artist   = @t[1]
+    fh.tag.album    = @t[2]
+    fh.tag.genre_s  = @t[3]
+    fh.tag.year     = @t[4].to_i
+    fh.tag.comments = @t[5]
+    fh.tag.tracknum = @t[6].split("/")[0].to_i
+    fh.close
+  end
+
+  public
+  #
+  #  MPEG-4 file extensions.
+  #
+  alias wavToM4b wavToM4a
+  alias wavToMp4 wavToM4a
+  alias wavToAac wavToM4a
+
+  #
+  #  Musepack file extensions.
+  #
+  alias wavToMpp wavToMpc
+
+  #
+  # The rest of these audio formats all use sox.
+  #
+
+  #
+  #  Audio Interchange file extensions.
+  #
+  alias wavToAif   wavToSox 
+  alias wavToAiff  wavToSox
+  alias wavToAifc  wavToSox
+  alias wavToAiffc wavToSox
+
+  #
+  #  Au file extensions.
+  #
+  alias wavToAu  wavToSox
+  alias wavToSnd wavToSox
+
+  #
+  #  Redbook CD audio file extensions.
+  #
+  alias wavToCdr  wavToSox
+  alias wavToCdda wavToSox
+
+  #
+  #  Others (audio)....
+  #
+  alias wavToCaf   wavToSox  #  CAF  (Apple Core Audio File)
+  alias wavToSvx   wavToSox  #  IFF  (Amiga IFF/SVX8/SV16)
+  alias wavToPaf   wavToSox  #  PAF  (Ensoniq PARIS)
+  alias wavToFap   wavToSox  #  PAF  (Ensoniq PARIS)
+  alias wavToGsm   wavToSox  #  RAW  (header-less)
+  alias wavToNist  wavToSox  #  WAV  (NIST Sphere)
+  alias wavToIrcam wavToSox  #  SF   (Berkeley/IRCAM/CARL)
+  alias wavToSf    wavToSox  #  SF   (Berkeley/IRCAM/CARL)
+  alias wavToVoc   wavToSox  #  VOC  (Creative Labs)
+  alias wavToW64   wavToSox  #  W64  (SoundFoundry WAVE 64)
+  alias wavToRaw   wavToSox  #  RAW  (header-less)
+  alias wavToMat4  wavToSox  #  MAT4 (GNU Octave 2.0 / Matlab 4.2)
+  alias wavToMat5  wavToSox  #  MAT5 (GNU Octave 2.1 / Matlab 5.0)
+  alias wavToMat   wavToSox  #  MAT4 (GNU Octave 2.0 / Matlab 4.2)
+  alias wavToPvf   wavToSox  #  PVF  (Portable Voice Format)
+  alias wavToSds   wavToSox  #  SDS  (Midi Sample Dump Standard)
+  alias wavToSd2   wavToSox  #  SD2  (Sound Designer II)
+  alias wavToVox   wavToSox  #  RAW  (header-less)
+  alias wavToXi    wavToSox  #  XI   (FastTracker 2)
+
+  #
+  #  Video formats.
+  #
+  alias rvToWav   vidToWav
+  alias asfToWav  vidToWav
+  alias aviToWav  vidToWav
+  alias divxToWav vidToWav
+  alias mkvToWav  vidToWav
+  alias mpgToWav  vidToWav
+  alias mpegToWav vidToWav
+  alias movToWav  vidToWav
+  alias ogmToWav  vidToWav
+  alias qtToWav   vidToWav
+  alias vcdToWav  vidToWav
+  alias vobToWav  vidToWav
+  alias wmvToWav  vidToWav
+  alias flvToWav  vidToWav
+  alias svcdToWav vidToWav
+  alias m4vToWav  vidToWav
+  alias nsvToWav  vidToWav
+  alias nuvToWav  vidToWav
+  alias pspToWav  vidToWav
+  alias smkToWav  vidToWav
+end
+
+
+def sanitize_filename(file, opts)
+  begin
+    file_clean = file.gsub(/[,;:'"%@\#`]/, '')
+    File.rename(file, file_clean) unless opts[:pretend]
+  rescue
+    puts "Cannot rename #{file}"
+    return file
+  end
+  return file_clean
+end
+
+#
+#  Instantiate a Convert object for the file, and call the relevant methods.
+#
+def dispatch_file(file, opts)
+  begin
+    file = sanitize_filename(file, opts) if opts[:sanitize]
+    fileroot, type = /^([^.]*$|.*(?=\.))\.?(.*)$/.match(file)[1..2] # foobar.baz -> foobar, baz
+    type.downcase!
+  #
+  # FIXME: Dirty hack to get threading to work.
+  #
+  rescue NoMethodError
+    return
+  end
+
+  if not (INTOK + VITOK).include?(type)
+    caution("I don't know how to decode '#{file}'")
+    exit 12 if opts[:strict]
+    return
+  end
+
+  song = Convert.new(file, fileroot, type, opts)
+
+  type = 'copy' if opts[:outtype] == 'copy'
+
+  case type
+  when 'copy'
+    return unless song.copyFile
+
+  when 'ogg'
+    return unless song.oggToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'mp3'
+    return unless song.mp3ToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'wma'
+    return unless song.wmaToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'flac'
+    return unless song.flacToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'ape'
+    return unless song.apeToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'wv'
+    return unless song.wvToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'wav'
+    exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+    return if exit_s == false
+
+  when 'm4a', 'm4b', 'aac', 'mp4'
+    return unless song.m4aToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'mpc', 'mpp'
+    return unless song.mpcToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'tta'
+    return unless song.ttaToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'aif', 'aiff', 'aifc', 'aiffc'
+    return unless song.aifToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'au', 'snd'
+    return unless song.auToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'mp2'
+    return unless song.mp2ToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'cdr', 'cdda'
+    return unless song.cdrToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'ofr'
+    return unless song.ofrToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'ofs'
+    return unless song.ofsToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'spx'
+    return unless song.spxToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  when 'asf', 'avi', 'divx', 'flv', 'mkv', 'mpg', 'mpeg', 'mov', 'm4v', 'nsv', 'nuv', 'ogm', 'psp', 'qt', 'rv', 'smk', 'svcd', 'vcd', 'vob', 'wmv'
+    return unless song.vidToWav
+    if opts[:outtype] != 'wav'
+      exit_s = song.send "wavTo#{opts[:outtype].capitalize}"
+      song.deleteWav
+      return if exit_s == false
+    end
+
+  else
+    puts "Shouldn't be here!!!"
+    puts "Self-destructing..."
+    exit 666
+  end
+
+  print "Wrote: "
+  info("#{song.outputFilename}")
+  File.utime(song.mtime,song.mtime,"#{song.outputFilename}") if opts[:stasis]
+
+  if opts[:delete]
+    File.delete(file) unless opts[:pretend]
+    print "Deleted: "
+    info(file)
+  end
+
+  puts
+end
+
+#
+#  Glob all infile type files and feed them to dispatch_file.
+#
+def dispatch_directory(directory, opts)
+  files = []
+  pwd = Dir.getwd
+  Dir.chdir(directory)
+  opts[:intype].each do |t|
+    if opts[:recursive]
+      files += Dir.glob("**/*.#{t}")            #  ie: foo.mp3 ... foo.m4a ... foo.ogg
+      files += Dir.glob("**/*.#{t.upcase}")     #  ie: foo.MP3 ... foo.M4A ... foo.OGG
+      files += Dir.glob("**/*.#{t.capitalize}") #  ie: foo.Mp3 ... foo.M4a ... foo.Ogg
+                                                #  If you have foo.mP3 fix your damn filenames!
+      #
+      #  Create subdirectories if '-D' is used.
+      #
+      if opts[:outdir] != ""
+        files.each do |f|
+          dir_array = f.split("/")[0...-1]
+          unless dir_array == []
+            unless opts[:pretend]
+              begin
+                dir = "#{opts[:outdir] + dir_array.join("/")}"
+                unless File.exist?(dir) == true
+                  require 'fileutils'
+                  FileUtils.mkdirs("#{dir}")
+                  info("Created directory #{dir}") if opts[:verbose]
+                end
+              rescue
+                error("Could not create directory: '#{opts[:outdir]}/#{dir_array.join("/")}'")
+                exit 25
+              end
+            end
+          end
+        end
+      end
+    else
+      files += Dir.glob("*.#{t}")
+      files += Dir.glob("*.#{t.upcase}")
+      files += Dir.glob("*.#{t.capitalize}")
+    end
+  end
+
+  if files.length == 0
+    caution("No #{opts[:intype].join(" or ")} files to convert in #{directory}")
+    exit 9 if opts[:strict]
+  end
+
+  files.sort!
+
+  if not opts[:threads]
+    files.each { |file| dispatch_file(file, opts) }
+  else
+    while files != []
+      threads = []
+      puts "Starting #{opts[:threads]} threads..."
+      while threads.size < opts[:threads]
+        threads << Thread.new(files.pop) do |file|
+          dispatch_file(file, opts)
+        end
+      end
+    threads.each { |thr| thr.join }
+    end
+  end
+  Dir.chdir(pwd)
+end
+
+#
+#  TODO: allow for default config files.
+#  Made difficult due to limitations of GetoptLong.
+#
+# class ParseConfig
+#   #
+#   #  Parse config files for default options.
+#   #
+#   attr_reader :myopts
+#   def initialize(myopts)
+#     @myopts = myopts
+#     files = ['/etc/sneetchrc', "#{ENV['HOME']}/.sneetchrc"]
+#   end
+# 
+#   #private
+#   #def  
+# end
+
+
+class ProcessCLI
+  #
+  #  This is all just a wrapper to encapsulate CLI processing
+  #  and populate the option struct.
+  #
+  attr_reader :myopts
+
+  def initialize
+    puts "#{APPNAME} version #{APPVERSION} (#{QUIP}). Use at your own risk"
+    puts "Written by Darren Kirby :: d@badcomputer.org :: http://badcomputer.org/unix/code/sneetchalizer/"
+    puts "Released under the GPL"
+    puts
+
+    optstruct = Struct.new(:verbose, :showoutput, :delete, :recursive, :outdir, :rename, :inOptionHook, :outOptionHook, :outtype, :intype,
+                          :brate, :qrate, :strict, :pedantic, :compression, :sanitize, :pretend, :gogo, :bladeenc, :threads, :stasis, :tags_nc, :tags_c)
+
+    #
+    #  Assign default values to our option struct.
+    #
+    @myopts = optstruct.new(nil, nil, nil, nil, "", nil, "", "", "wav", ["wav"], nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, {}, {})
+
+    require 'getoptlong'
+    cliopts = GetoptLong.new(
+        [ "--verbose",         "-v",  GetoptLong::NO_ARGUMENT ],
+        [ "--delete",          "-d",  GetoptLong::NO_ARGUMENT ],
+        [ "--show-output",     "-s",  GetoptLong::NO_ARGUMENT ],
+        [ "--pretend",         "-p",  GetoptLong::NO_ARGUMENT ],
+        [ "--out",             "-i",  GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--in",              "-o",  GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--h",               "-h",  GetoptLong::NO_ARGUMENT],
+        [ "--help",                   GetoptLong::NO_ARGUMENT],
+        [ "--in-optionhook",          GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--out-optionhook",         GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--terminate",       "-t",  GetoptLong::NO_ARGUMENT],
+        [ "--out-directory",   "-D",  GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--rename",          "-n",  GetoptLong::OPTIONAL_ARGUMENT ],
+        [ "--bitrate",         "-b",  GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--quality",         "-q",  GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--compression",     "-c",  GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--strict",          "-S",  GetoptLong::NO_ARGUMENT],
+        [ "--pedantic",        "-P",  GetoptLong::NO_ARGUMENT],
+        [ "--recursive",       "-r",  GetoptLong::NO_ARGUMENT],
+        [ "--sanitize",        "-z",  GetoptLong::NO_ARGUMENT],
+        [ "--bladeenc",        "-B",  GetoptLong::NO_ARGUMENT],
+        [ "--gogo",            "-G",  GetoptLong::NO_ARGUMENT],
+        [ "--threads",         "-T",  GetoptLong::OPTIONAL_ARGUMENT ],
+        [ "--stasis",                 GetoptLong::NO_ARGUMENT],
+        # Tag opts
+        [ "--tt",                     GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--ta",                     GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--tl",                     GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--ty",                     GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--tc",                     GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--tn",                     GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--tg",                     GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--title",                  GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--artist",                 GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--album",                  GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--year",                   GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--comment",                GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--trackn",                 GetoptLong::REQUIRED_ARGUMENT ],
+        [ "--genre",                  GetoptLong::REQUIRED_ARGUMENT ]
+    )
+
+    #
+    #  Supress error messages, as we'll handle manually.
+    #
+    cliopts.quiet = TRUE
+
+    begin
+      cliopts.each do |opt, arg|
+
+        cliopts.terminate             if ( opt == '-t' )      || ( opt == '--terminate' )
+        short_help                    if ( opt == '-h' )      || ( opt == '--h' ) 
+        long_help                     if ( opt == '--help' )
+        @myopts[:verbose]       = 1   if ( opt == '-v' )      || ( opt == '--verbose' )
+        @myopts[:showoutput]    = 1   if ( opt == '-s' )      || ( opt == '--show-output' )
+        @myopts[:delete]        = 1   if ( opt == '-d' )      || ( opt == '--delete' )
+        @myopts[:stasis]        = 1   if ( opt == '--stasis' )
+
+        @myopts[:recursive]     = 1   if ( opt == '-r' )      || ( opt == '--recursive' )
+        @myopts[:outdir]        = arg if ( opt == '-D' )      || ( opt == '--out-directory' )
+        @myopts[:rename]        = arg if (( opt == '-n' )     || ( opt == '--rename' )) && arg != ''
+        @myopts[:rename]        = "%n %t" if (( opt == '-n' ) || ( opt == '--rename' )) && arg == ''
+
+        @myopts[:outtype]       = arg            if ( opt == '--out' )
+        @myopts[:intype]        = arg.split(",") if ( opt == '--in' )
+
+        @myopts[:brate]         = arg.to_i if ( opt == '-b' ) || ( opt == '--bitrate' )
+        @myopts[:qrate]         = arg      if ( opt == '-q' ) || ( opt == '--quality' )
+        @myopts[:strict]        = 1        if ( opt == '-S' ) || ( opt == '--strict' )
+        @myopts[:pedantic]      = 1 && myopts[:strict] = 1 if ( opt == '-P' ) || ( opt == '--pedantic' )
+
+        @myopts[:compression]   = arg if ( opt == '-c' ) || ( opt == '--compression' )
+        @myopts[:pretend]       = 1   if ( opt == '-p' ) || ( opt == '--pretend' )
+        @myopts[:sanitize]      = 1   if ( opt == '-z' ) || ( opt == '--sanitize' )
+        @myopts[:threads]       = arg if ( opt == '-T' ) || ( opt == '--threads' )
+
+        @myopts[:gogo]          = 1   if ( opt == '-G' ) || ( opt == '--gogo' )
+        @myopts[:bladeenc]      = 1   if ( opt == '-B' ) || ( opt == '--bladeenc' )
+
+        @myopts[:inOptionHook]  = arg if ( opt == '--in-optionhook' )
+        @myopts[:outOptionHook] = arg if ( opt == '--out-optionhook' )
+
+        #  No-clobber
+        @myopts[:tags_nc]['title']    = arg if ( opt == '--tt' )
+        @myopts[:tags_nc]['artist']   = arg if ( opt == '--ta' )
+        @myopts[:tags_nc]['album']    = arg if ( opt == '--tl' )
+        @myopts[:tags_nc]['year']     = arg if ( opt == '--ty' )
+        @myopts[:tags_nc]['comment']  = arg if ( opt == '--tc' )
+        @myopts[:tags_nc]['genre']    = arg if ( opt == '--tg' )
+        @myopts[:tags_nc]['tracknum'] = arg if ( opt == '--tn' )
+        #  Clobber
+        @myopts[:tags_c]['title']    = arg if ( opt == '--title' )
+        @myopts[:tags_c]['artist']   = arg if ( opt == '--artist' )
+        @myopts[:tags_c]['album']    = arg if ( opt == '--album' )
+        @myopts[:tags_c]['year']     = arg if ( opt == '--year' )
+        @myopts[:tags_c]['comment']  = arg if ( opt == '--comment' )
+        @myopts[:tags_c]['genre']    = arg if ( opt == '--genre' )
+        @myopts[:tags_c]['tracknum'] = arg if ( opt == '--trackn' )
+
+      end #  end cliopts.each...
+
+    #
+    #  Handle CLI errors.
+    #
+    rescue GetoptLong::InvalidOption
+      caution("#{cliopts.error_message}")
+      caution("Hint: try '#{APPNAME} --help' for usage details")
+      puts
+      exit 1
+
+    rescue GetoptLong::NeedlessArgument
+      caution("#{cliopts.error_message}")
+      caution("Hint: try '#{APPNAME} --help' for usage details")
+      puts
+      exit 2
+
+    rescue GetoptLong::MissingArgument
+      caution("#{cliopts.error_message}")
+      caution("Hint: try '#{APPNAME} --help' for usage details")
+      puts
+      exit 3
+    end
+
+    if not OUTOK.include?(@myopts[:outtype])
+      error("I don't know how to encode '.#{@myopts[:outtype]}' format")
+      exit 11
+    end
+
+    #
+    #  Normalize pathname.
+    #
+    if not @myopts[:outdir] == ""
+      begin
+        @myopts[:outdir] = File.expand_path(@myopts[:outdir])
+        type = File.stat(@myopts[:outdir]).ftype
+      rescue Errno::ENOENT
+        caution("Output directory: '#{@myopts[:outdir]}' does not exist")
+        exit 7 if @myopts['strict']
+        print "I will attempt to create it... "
+        begin
+          Dir.mkdir(@myopts[:outdir]) unless @myopts[:pretend]
+        rescue SystemCallError
+          error("sorry, no dice")
+          exit 7
+        end
+        puts "OK, done"
+        puts
+        type = File.stat(@myopts[:outdir]).ftype unless @myopts[:pretend]
+      end
+
+      unless @myopts[:pretend]
+        if type != 'directory'
+          error("Output directory: '#{@myopts[:outdir]}' is not a directory")
+          exit 8
+        end
+      end
+
+      if @myopts[:outdir][-1].chr != "/"
+        @myopts[:outdir] += "/"
+      end
+    end
+
+    #
+    #  Threading creates jumbled/random screen output
+    #  so we turn off 'verbose' and 'showoutput' flags.
+    #
+    if @myopts[:threads]
+      @myopts[:verbose]    = nil
+      @myopts[:showoutput] = nil
+      begin # 2 threads by default
+        @myopts[:threads] == "" ? @myopts[:threads] = 2 : @myopts[:threads] = @myopts[:threads].to_i
+        raise StandardError if @myopts[:threads] <= 0 # "three".to_i returns 0
+      rescue
+        error("Arg to '--threads' must be an Integer")
+        exit 41
+      end
+    end
+
+    #
+    #  Check for bitrate arg.
+    #  Valid lame bitrates: 32 40 48 56 64 80 96 112 128 160 192 224 256 320.
+    #  lame/oggenc will select a valid bitrate closest to the actual arg.
+    #  Valid oggenc bitrate range: 64 - 500!
+    #
+    if @myopts[:brate]
+
+      if @myopts[:outtype] == "ogg"
+        if not (64..500).include? @myopts[:brate]
+          error("'-b' or '--bitrate' must be between 64 and 500 inclusive for Ogg Vorbis (OGG) files'")
+          exit 29
+        end
+      end
+
+      if @myopts[:outtype] == "mp3"
+        if not (32..320).include? @myopts[:brate]
+          error("'-b' or '--bitrate' must be between 32 and 320 inclusive for MPEG-1 Layer III (MP3) files")
+          exit 29
+        end
+      end
+
+      #
+      #  'faac' bitrate will accept any integer for bitrate, but round up to 60 kbps
+      #  and round down to 152 kbps.
+      #
+      if %w/aac mp4 m4a m4b/.include? @myopts[:outtype]
+
+        if (60..152).include? @myopts[:brate]
+          # no-op
+        elsif @myopts[:brate] > 152
+          caution("faac's maximum bitrate is 152 kbps")
+          caution("faac will scale '#{@myopts[:brate]}' down to '152'")
+        elsif @myopts[:brate] < 60
+          caution("faac's minimum bitrate is 60 kbps")
+          caution("faac will scale '#{@myopts[:brate]}' up to '60'")
+        else
+          error("Invalid bitrate argument. See 'faac --help'")
+          exit 29
+        end
+      end
+    end
+
+    #
+    #  Check for quality arg.
+    #
+    if @myopts[:qrate]
+      #
+      #  'oggenc' quality ranges from -1 (poorest/fastest) to 10 (best/slowest). Default is 3.
+      #
+      if @myopts[:outtype] == "ogg"
+
+        if @myopts[:qrate].match(".")
+          @myopts[:qrate] = @myopts[:qrate].to_f
+        else
+          @myopts[:qrate] = @myopts[:qrate].to_i
+        end
+
+        if not (-1..10).include? @myopts[:qrate]
+          error("'-q' or '--quality' must be -1 to 10 inclusive ... see 'oggenc --help'")
+          exit 30
+        end
+      end
+
+      #
+      #  'lame' quality ranges from 0 (best/slowest) to 9 (poorest/fastest). Default is 5.
+      #
+      if @myopts[:outtype] == "mp3"
+        if not (0..9).include? @myopts[:qrate].to_i
+          error("'-q' or '--quality' must be 0 to 9 inclusive ... see 'lame --help'")
+          exit 30
+        end
+      end
+
+      #
+      #  'mppenc' quality args are 'thumb', 'radio', 'standard' (default), and 'xtreme'.
+      #
+      if %w/mpc mpp/.include? @myopts[:outtype]
+        if not %w/thumb radio standard xtreme/.include? @myopts[:qrate]
+          error("'-q' or '--quality' must be one of 'thumb', 'radio', 'standard', or 'xtreme' ... see 'mppenc --help'")
+          exit 30
+        end
+      end
+    end
+
+    #
+    #  Check for flac compression arg.
+    #
+    if @myopts[:outtype] == "flac"
+
+      if @myopts[:compression] == nil
+        @myopts[:compression] = 8
+      end
+
+      if not (0..8).include? @myopts[:compression].to_i
+        error("'-c' or '--compression' must be 0-8 inclusive ... see 'flac --help'")
+        exit 31
+      end
+    end
+
+    #
+    #  Check for ape compression arg.
+    #
+    if @myopts[:outtype] == "ape"
+
+      if @myopts[:compression] == nil
+        @myopts[:compression] = "2000"
+      end
+
+      if not [1000, 2000, 3000, 4000, 5000].include? @myopts[:compression].to_i
+        error("'-c' or '--compression' must be '1000', '2000', '3000', '4000', or '5000' ... see 'mac --help'")
+        exit 31
+      end
+    end
+
+    #
+    #  Check for arguments.
+    #
+    if ARGV.size == 0
+      error("You must specify a file and/or directory to act upon")
+      puts
+      exit 4
+    end
+  end
+end
+
+
+if __FILE__ == $0
+  files = []
+  directories = []
+  opts = ProcessCLI.new.myopts
+  ARGV.each do |file|
+
+    begin
+      type = File.stat(file).ftype
+
+      if type == 'directory'
+        directories << file
+      elsif type == 'file'
+        files << file
+      else
+        caution("I don't think I should mess with '#{file}'")
+        exit 5 if opts[:strict]
+        caution("I am just going to ignore it")
+      end
+
+    rescue Errno::ENOENT
+      caution("'#{file}' does not seem to exist")
+      exit 6 if opts[:strict]
+    end
+  end
+
+  files.sort! #  Convert files in alphabetical (asciibetical!) order.
+
+  if not opts[:threads]
+    files.each { |file| dispatch_file(file, opts) }
+    directories.each { |dir| dispatch_directory(dir, opts) }
+  else
+    while files != []
+      threads = []
+      puts "Starting #{opts[:threads]} threads..."
+      while threads.size < opts[:threads]
+        threads << Thread.new(files.pop) do |file|
+          dispatch_file(file, opts)
+        end
+      end
+    threads.each { |thr| thr.join }
+    end
+    directories.each { |dir| dispatch_directory(dir, opts) }
+  end
+
+  puts "That is all."
+  exit 0
+end
+
+__END__
+
+0.9.0
+
+Exit Codes:
+
+0  ==> Success!
+1  ==> Invalid option
+2  ==> Needless option
+3  ==> Missing argument
+4  ==> Missing file/directory input argument
+5  ==> Input argument not a file or directory
+6  ==> Input file/directory does not exist
+7  ==> --out-directory/-D argument does not exist
+8  ==> --out-directory/-D argument is not a directory
+9  ==> Input directory argument contains no files to convert (--strict)
+10 ==> Unknown conversion failure (--strict)
+11 ==> Unrecognized output token
+12 ==> Unrecognized input filetype
+13 ==> Ogg Vorbis tag error (--pedantic)
+14 ==> AAC/M4A/M4B/MP4 tag error  (--pedantic)
+15 ==> WmaInfo LoadError  (--pedantic)
+16 ==> WMA tag error  (--pedantic)
+17 ==> id3 LoadError  (--pedantic)
+18 ==> MP3 tag error  (--pedantic)
+19 ==> FlacInfo LoadError  (--pedantic)
+20 ==> Flac tag error  (--pedantic)
+21 ==> apetag LoadError  (--pedantic)
+22 ==> Ape tag error  (--pedantic)
+23 ==> OggInfo LoadError (--pedantic)
+24 ==> MP4Info LoadError (--pedantic)
+25 ==> Unable to create directory
+26 ==> Ogg Vorbis encoder not found
+27 ==> Mp3 encoder not found
+28 ==> Flac encoder not found
+29 ==> lame/oggenc/faac --bitrate arg out of range or invalid
+30 ==> lame/oggenc/mppenc --quality arg out of range or invalid
+31 ==> flac --compression arg out of range or invalid
+32 ==> Conversion command not found
+33 ==> Mp4 encoder not found
+34 ==> Monkey's Audio encoder not found
+35 ==> Wavpack encoder not found
+36 ==> Musepack encoder not found
+37 ==> True Audio encoder not found
+38 ==> sox not found (check the dryer!))
+39 ==> OptimFROG encoder not found
+40 ==> Speex encoder not found
+41 ==> Bad argument to '--threads'
+42 ==> Wma encoder not found
+43 ==> Mplayer not found
+
+666 ==> If you get this, something seriously screwed up.
+        Please send me a bug report...

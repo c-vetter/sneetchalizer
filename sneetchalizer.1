@@ -1,0 +1,298 @@
+.TH SNEETCHALIZER 1 "13 April 08"
+.SH NAME
+sneetchalizer \- Convert between various audio formats
+.SH SYNOPSIS
+\fBsneetchalizer\fP [ options ] \fIfilename\fP \fIfilename2...\fP  \fIdirectory\fP \fIdirectory2...\fP
+.SH DESCRIPTION
+\fBsneetchalizer\fP converts between several different audio file formats and tries to preserve meta tags if they exist or create them if they don't. The script can handle any number of file and/or directory arguments. \fBsneetchalizer\fP is the glue that binds together various audio encoders/decoders:
+
+.SH SUPPORTED SOFTWARE
+\fBlame\fP
+for \fImp3\fP encoding/decoding (MPEG-1 Audio Layer 3) :: http://lame.sourceforge.net/
+
+\fBbladeenc\fP
+alternative \fImp3\fP encoder :: http://freshmeat.net/projects/bladeenc/
+
+\fBgogo\fP
+alternative \fImp3\fP encoder :: http://freshmeat.net/projects/gogo/
+
+\fBoggenc\fP and \fBoggdec\fP
+for \fIogg\fP encoding/decoding (Ogg Vorbis) :: http://www.vorbis.com/
+
+\fBfaac\fP and \fBfaad\fP
+for \fIm4a\fP, \fIm4b\fP, \fImp4\fP and \fIaac\fP encoding/decoding (MPEG-4 Part 14) :: http://www.audiocoding.com/
+
+\fBflac\fP
+for \fIflac\fP encoding/decoding (Free Lossless Audio Codec) :: http://flac.sourceforge.net/
+
+\fBmplayer\fP
+for \fIwma\fP decoding/decoding (Windows Media Audio), and various video formats :: http://www.mplayerhq.hu/
+
+\fBmac\fP
+for \fIape\fP encoding/decoding (Monkey's Audio) :: http://sourceforge.net/projects/mac-port
+
+\fBwavpack\fP and \fBwvunpack\fP
+for \fIwv\fP  encoding/decoding (Wavpack) :: http://www.wavpack.com/
+
+\fBmppenc\fP and \fBmppdec\fP
+for \fImpc\fP and \fImpp\fP encoding/decoding (Musepack) :: http://www.musepack.net/
+
+\fBofr\fP and \fBofs\fP
+for \fIofr\fP and \fIofs\fP encoding/decoding (OptimFROG, OptimFROG DualStream) :: http://www.losslessaudio.org/
+
+\fBttaenc\fP
+for \fItta\fP encoding/decoding (True Audio) :: http://www.true-audio.com/
+
+\fBspeexenc\fP and \fBspeexdec\fP
+for \fIspx\fP encoding/decoding (Speex) :: http://www.speex.org/
+
+\fBsox\fP
+adds support for several audio formats :: http://sox.sourceforge.net/ 
+
+None of this software is 'required' per se. sneetchalizer does not check that they are installed prior to running, however, it stands to reason that if you want to encode/decode mp3 files you need to have a supported mp3 encoder installed, and so forth.
+
+.SH OPTIONAL TAGGING LIBRARIES
+There are several tag libraries you may want to install to enhance the script:
+
+\fBruby-mp3info\fP
+by Guillaume Pierronnet (http://rubyforge.org/projects/ruby-mp3info/) for reading MP3 Id3 tags.
+
+\fBid3lib-ruby\fP
+by Robin Stocker (http://rubyforge.org/projects/id3lib-ruby/) for reading MP3 Id3 tags. Note that id3lib-ruby are bindings which require the id3lib C++ library be installed. 
+
+\fBID3\fP 
+by Tilo Sloboda (http://www.unixgods.org/~tilo/Ruby/ID3-v0.4/docs/index.html) for reading MP3 Id3 tags.
+
+\fBwmainfo-rb\fP
+by Darren Kirby (http://badcomputer.org/unix/code/wmainfo/) for reading WMA tags.
+
+\fBflacinfo-rb\fP
+by Darren Kirby (http://badcomputer.org/unix/code/flacinfo/) for reading Vorbis comments from Flac files.
+
+\fBruby-apetag\fP
+by Jeremy Evans (http://rubyforge.org/projects/apetag/) for reading Apev2 tags from Monkey's Audio, Musepack, True Audio, OptimFROG, and Wavpack files.
+ 
+\fBMP4Info\fP 
+by Jason Terk (http://rubyforge.org/projects/mp4info/) for reading MP4 tags from MPEG-4 Part 14 files (m4a et al).
+
+\fBruby-ogginfo\fP
+by Guillaume Pierronnet  (http://rubyforge.org/projects/ruby-ogginfo/) for reading Vorbis comments from Ogg Vorbis files.
+
+Most of these libraries are available via Gems. There is some brief notes on installing them in sneetchalizer's README file. 
+
+.SH OPTIONS
+
+.SS General Options:
+
+.TP
+\fB-h\fP
+print terse usage details to the screen.
+.TP
+\fB--help\fP
+print full usage details to the screen.
+.TP
+\fB-d or --delete\fP
+delete input files after successful conversion. Should be safe but use at your own risk.
+.TP
+\fB-r or --recursive\fP
+recursively convert files in all directory arguments. 
+.TP
+\fB-v or --verbose\fP
+make sneetchalizer more chatty. At this point all it does is print the tags it finds/creates.
+.TP
+\fB-s or --show-output\fP
+show output from conversion tools.
+.TP
+\fB-p or --pretend\fP
+don't convert anything. sneetchalizer will go through the motions and print out the commands it would run. Useful for previewing a complex command line to ensure it does what you intend. You should interpret this option's output with a grain of salt. For example, if you include the '--sanitize' option, the files will not really be renamed when using --pretend, and as such the command's output will not reflect that the filenames would be changed during an actual run.
+.TP
+\fB-t or --terminate\fP
+terminate sneetchalizer options. This is useful if you have to convert '\fB--coolDir\fP' or '\fB-groovySong.mp3\fP'. This is the only option whose order on the command line is significant.
+.TP
+\fB-D \fIDIR\fP or --out-directory=\fIDIR\fP\fP
+write all outfiles (and temporary wavs) to directory \fIDIR\fP. This is useful if you want to (re)encode files directly to a mounted portable device, or if you want to convert files from a read-only filesystem.
+.TP
+\fB-n \fR[\fIFORMAT\fR]\fB or --rename\fR[=\fIFORMAT\fR]\fP
+rename all outfiles (and temporary wavs) according to \fIFORMAT\fP. \fIFORMAT\fP is a string with special designators to be pulled from the file tags.  The following options are available:
+.RS
+.PD 0
+.IP ""
+\fB%t \fRSong title
+.IP ""
+\fB%b \fRAlbum title
+.IP ""
+\fB%n \fRTrack number
+.IP ""
+\fB%a \fRArtist name
+.IP ""
+\fB%y \fRYear
+.IP ""
+\fB%g \fRGenre
+.IP ""
+\fB%c \fRComment field
+.PD
+.RE
+.IP
+Directories may be created with this command, as in \fB"%b/%n - %t"\fR.  The default value of \fIFORMAT\fP is \fB"%n %t"\fR.
+.TP
+\fB--strict\fP
+many errors that sneetchalizer may encounter are recoverable, such as specifying a directory as argument that contains no files to convert, or conversion failures in general. By default the script will print an error message and move on to the next file. If you use this option then sneetchalizer will bail out at the first sign of trouble, except for tag errors.
+.TP
+\fB--pedantic\fP
+with this option sneetchalizer will bail out when tag errors are encountered. Implies \fB--strict\fP.
+.TP
+\fB--sanitize\fP
+this option will scrub the characters \fB,\fP, \fB;\fP, \fB:\fP, \fB'\fP, \fB"\fP, \fB%\fP, \fB@\fP, \fB#\fP and \fB`\fP from the filename and tags.
+.TP
+\fB--threads \fI[N]\fP\fP
+EXPERIMENTAL. Use threads to create concurrent jobs. This option takes an optional integer argument which represents the number of threads to launch. The default is two. Preliminary tests 
+suggest there is little advantage (and even diminishing returns) when setting this number greater than the number of cores/CPUs you have. Due to the asychronous nature of threads the \fI'--verbose'\fP 
+and \fI'--show-output'\fP flags will be silently disabled and most screen output is supressed.
+.TP
+\fB--stasis\fP
+Read timestamp (mtime) of original file, and write it to the output file.
+
+.SS Bitrate/Quality/Compression Options:
+
+.TP
+\fB-b \fIN\fP or --bitrate=\fIN\fP\fP
+\fImp3\fP, \fIogg\fP, or \fIaac/m4a/m4b/mp4\fP bitrate.
+.TP
+\fB-q \fIN\fP or --quality=\fIN\fP\fP
+\fImp3\fP, \fImpc/mpp\fP, or \fIogg\fP quality.
+.TP
+quality and bitrate are passed directly to \fBlame\fP, \fBgogo\fP, or \fBoggenc\fP depending on \fImp3\fP or \fIogg\fP output format respectively. These tools can handle either a bitrate or quality argument, so it is important to understand what values are valid for the underlying tool in your specific use case. \fBfaac\fP will accept a bitrate argument, but not a quality argument. \fBmppenc\fP will accept a quality argument, but not a bitrate argument. Make sure you know what you are doing if you decide to use both in one run, and read each tools manpage for valid values. If these options are omitted the tools builtin defaults are used (-q3 for \fBoggenc\fP, -q5 for \fBlame\fP and -qstandard for \fBmppenc\fP).
+.TP
+\fB-c \fIN\fP or --compression=\fIN\fP\fP
+\fIflac\fP or \fIape\fP compression.
+.TP
+this option allows you to pass a compression argument to \fBflac\fP or \fBmac\fP. See 'flac --help' or 'mac --help' if you don't know what this means.
+.SS Format Options:
+
+.TP
+\fB--out=\fIFORMAT\fP\fP 
+output format. Default is \fIwav\fP.
+.TP
+\fB--in=\fIFORMAT\fP[,\fIFORMAT\fP...]\fP
+input format(s). Default is \fIwav\fP.
+.TP
+Please run 'sneetchalizer --help' for a list of currently supported in/out format tokens. You can specify multiple input formats using a comma: 'mp3,m4a,wma'. Input format is only neccesary when passing directory arguments, (and in fact, if you are converting from wav format it is still not necessary) as file arguments are handled by context (read: file extension). The "copy" output option copies files directly, bypassing decoding/encoding steps (useful in conjunction with \fB--rename\fR).
+
+.SS Tagging options:
+.TP
+\fB--tt or --title\fP
+Set 'title' tag.
+.TP
+\fB--ta or --artist\fP
+Set 'artist' tag.
+.TP
+\fB--tl or --album\fP
+Set 'album' tag.
+.TP
+\fB--ty or --year\fP
+Set 'year' tag.
+.TP
+\fB--tc or --comment\fP
+Set 'comment' tag.
+.TP
+\fB--tg or --genre\fP
+Set 'genre' tag.
+.TP
+\fB--tn or --trackn\fP
+Set 'track number' tag.
+.TP
+The short and long versions are different in an important way: Using the long version will clobber any existing tags. The short version will only set the tag if the existing tag has no value. Note that these tags will be placed in _every_ outfile during the run. You almost certainly don't want to set the '--title' tag when converting multiple input files.
+
+.SS Alternative Encoder/Decoder Options:
+
+.TP
+\fB--gogo\fP               
+use \fIgogo\fP to encode mp3 files.
+.TP
+\fB--bladeenc\fP
+use \fIbladeenc\fP to encode mp3 files.
+.TP
+These two options will override \fIlame\fP as the default mp3 encoder.
+.SS Special Options:
+
+.TP
+\fB--in-optionhook=\fIARG\fP\fP
+add \fIARG\fP to infile conversion command. Possibly dangerous!
+.TP
+\fB--out-optionhook=\fIARG\fP\fP
+add \fIARG\fP to outfile conversion command. Possibly dangerous!
+.TP
+These two options are a hook to pass additional options to the underlying conversion tools. \fIARG\fP is passed directly to the shell (right after the command name) so escape it if neccesary. The underlying tool will depend on input and output format, for example, if --in is \fIogg\fP and --out is \fImp3\fP then --in-optionhook's value would get passed to \fBoggdec\fP and --out-optionhook's value would be passed to \fBlame\fP. Using these options are at your own risk, and bug reports involving them will be ignored. 
+
+.SH USAGE EXAMPLES
+
+
+.SS sneetchalizer song.mp3
+.TP
+
+The most simple possible example, creates 'song.wav'.
+
+.SS sneetchalizer --out=ogg --in=flac -q5 /some/music/dir
+.TP
+
+This example converts every flac file in '/some/music/dir' to ogg format at quality 5.
+
+.SS sneetchalizer -d --out=mp3 --in=ogg,m4a,wma -b 160 .
+.TP
+
+Converts every ogg, m4a, and wma file in the current directory to a 160 kbps constant bitrate mp3 file. The original files are deleted.
+
+.SS sneetchalizer --out=mp3 --out-optionhook="--preset extreme" /some/wavs
+.TP
+
+Here we encode every wav in '/some/wavs' to mp3 format passing '--preset extreme' directly to \fBlame\fP.
+
+.SS sneetchalizer --in=ogg --out=ogg --quality=1 /some/oggs
+.TP
+
+Using the same --in and --out format allows us to resample/encode the file at a different bitrate or quality. Note that this will overwrite the original file(s) in place so only use this on a copy or use the '-D' option to write the files to a different directory.
+
+.SS sneetchalizer --in=ogg --out=m4a -D /mnt/ipod/ /some/oggs
+.TP
+
+Here we re-encode some ogg files to m4a format and write them to our iPod (or iRiver or iAudio or other iPortable iPlayer du jour).
+
+.SS sneetchalizer -r --in=wav --out=ogg -D /some/flacs /some/wavs
+.TP
+
+When we use '-r' and '-D' together we can effectively create a mirror. With this command the directory structure below '/some/wavs' will be reproduced under '/some/flacs' with all wav files encoded to Flac format.
+
+.SS sneetchalizer --threads --out=wav --in=mp3 /some/mp3s
+.TP
+
+Here we use threads to munch through all the mp3 files in '/some/mp3s' a little quicker.
+
+.SH FILES
+none
+.SH "SEE ALSO"
+lame(1), oggenc(1), oggdec(1), mplayer(1), sox(1)
+.TP
+faad, faac, flac, mac, wavpack, wvunpack, mppenc, and mppdec don't seem to have manpages but you can use '--help' to see their options.
+.SH BUGS
+.TP
+Files with commas in the name may break mplayer (see: http://bugzilla.mplayerhq.hu/show_bug.cgi?id=309). For now, remove the comma or use '--strict' when decoding wma files.
+.TP
+Some folks like to name their Musepack files with an *.mp+ extension. Due to the fact that in Ruby you cannot have a '+' in a method name, and that sneetchalizer uses the file extension to dispatch audio files to an appropriate method, files with this extension are not supported. It would take a fair bit of dirty-hackery to get it to work, so for now, and probably forever, use a batch rename script/command to change the extension to *.mpc or *.mpp for Musepack files.
+.TP
+The ID3v2 spec suggests that you can specify an arbitrary genre, (and sneetchalizer tells lame to write v2 tags) however, lame does not seem to implement this. Consequently, if your original file's genre tag is not one of the ID3 specs (stupid!) predefined genres it will be coerced to (12) which means 'Other'. There is nothing I can do about this. 
+.TP
+If you intend to script sneetchalizer you may be interested in the exit codes. These are documented at the bottom of the script itself.
+.TP
+Send bug reports to <sneetch@badcomputer.org>
+.SH AUTHOR
+Darren Kirby <d@badcomputer.org>
+.SH CONTRIBUTORS
+.TP
+Vance Morgan <lafeyette_management [AT] comcast.net> noticed and fixed a bug in the install script.
+.TP
+Peter 'H' <peterh_hretep [AT] yahoo.com> wrote the support for 'ape' (monkey's audio) files as well as
+some threading code I have not yet incorporated into the script.
+.TP
+Ian Young <youngian [AT] grinnell.edu> sent in patches which implement 'rename' and 'copy' functions, as 
+well as some bug fixes in the script and ebuild.
+
